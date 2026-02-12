@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 func discardLogger() *log.Logger {
@@ -35,53 +36,427 @@ func TestSingleJoiningSlash(t *testing.T) {
 	}
 }
 
-func TestInjectModel(t *testing.T) {
-	body := []byte(`{"prompt":"hello","max_tokens":100}`)
-	result := injectModel(body, "claude-opus")
+func TestModelMappingSonnet(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var data map[string]interface{}
+		json.Unmarshal(body, &data)
+		if data["model"] != "my-sonnet" {
+			t.Errorf("model = %v, want %q", data["model"], "my-sonnet")
+		}
+		w.WriteHeader(200)
+	}))
+	defer backend.Close()
 
-	var data map[string]interface{}
-	if err := json.Unmarshal(result, &data); err != nil {
-		t.Fatalf("unmarshal error: %v", err)
-	}
-	if data["model"] != "claude-opus" {
-		t.Errorf("model = %v, want %q", data["model"], "claude-opus")
-	}
-	if data["prompt"] != "hello" {
-		t.Errorf("prompt should be preserved, got %v", data["prompt"])
-	}
-	if data["max_tokens"] != float64(100) {
-		t.Errorf("max_tokens should be preserved, got %v", data["max_tokens"])
+	u, _ := url.Parse(backend.URL)
+	providers := []*Provider{{
+		Name: "test", BaseURL: u, Token: "t", Model: "default-model",
+		SonnetModel: "my-sonnet", HaikuModel: "my-haiku", OpusModel: "my-opus",
+		ReasoningModel: "my-reasoning", Healthy: true,
+	}}
+
+	srv := NewProxyServer(providers, discardLogger())
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"claude-sonnet-4-5-20250929","prompt":"hi"}`))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("status = %d, want 200", w.Code)
 	}
 }
 
-func TestInjectModelOverridesExisting(t *testing.T) {
-	body := []byte(`{"model":"old-model","prompt":"hi"}`)
-	result := injectModel(body, "new-model")
+func TestModelMappingHaiku(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var data map[string]interface{}
+		json.Unmarshal(body, &data)
+		if data["model"] != "my-haiku" {
+			t.Errorf("model = %v, want %q", data["model"], "my-haiku")
+		}
+		w.WriteHeader(200)
+	}))
+	defer backend.Close()
 
-	var data map[string]interface{}
-	json.Unmarshal(result, &data)
-	if data["model"] != "new-model" {
-		t.Errorf("model = %v, want %q", data["model"], "new-model")
+	u, _ := url.Parse(backend.URL)
+	providers := []*Provider{{
+		Name: "test", BaseURL: u, Token: "t", Model: "default-model",
+		SonnetModel: "my-sonnet", HaikuModel: "my-haiku", OpusModel: "my-opus",
+		Healthy: true,
+	}}
+
+	srv := NewProxyServer(providers, discardLogger())
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"claude-haiku-4-5","prompt":"hi"}`))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("status = %d, want 200", w.Code)
 	}
 }
 
-func TestInjectModelInvalidJSON(t *testing.T) {
-	body := []byte(`not json`)
-	result := injectModel(body, "model")
-	if string(result) != "not json" {
-		t.Errorf("should return original body for invalid JSON")
+func TestModelMappingOpus(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var data map[string]interface{}
+		json.Unmarshal(body, &data)
+		if data["model"] != "my-opus" {
+			t.Errorf("model = %v, want %q", data["model"], "my-opus")
+		}
+		w.WriteHeader(200)
+	}))
+	defer backend.Close()
+
+	u, _ := url.Parse(backend.URL)
+	providers := []*Provider{{
+		Name: "test", BaseURL: u, Token: "t", Model: "default-model",
+		SonnetModel: "my-sonnet", HaikuModel: "my-haiku", OpusModel: "my-opus",
+		Healthy: true,
+	}}
+
+	srv := NewProxyServer(providers, discardLogger())
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"claude-opus-4-5","prompt":"hi"}`))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("status = %d, want 200", w.Code)
 	}
 }
 
-func TestInjectModelEmptyModel(t *testing.T) {
-	body := []byte(`{"prompt":"hi"}`)
-	// When model is empty, forwardRequest skips injection,
-	// but injectModel itself still works
-	result := injectModel(body, "")
-	var data map[string]interface{}
-	json.Unmarshal(result, &data)
-	if data["model"] != "" {
-		t.Errorf("model = %v, want empty", data["model"])
+func TestModelMappingThinkingMode(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var data map[string]interface{}
+		json.Unmarshal(body, &data)
+		if data["model"] != "my-reasoning" {
+			t.Errorf("model = %v, want %q", data["model"], "my-reasoning")
+		}
+		w.WriteHeader(200)
+	}))
+	defer backend.Close()
+
+	u, _ := url.Parse(backend.URL)
+	providers := []*Provider{{
+		Name: "test", BaseURL: u, Token: "t", Model: "default-model",
+		SonnetModel: "my-sonnet", ReasoningModel: "my-reasoning", Healthy: true,
+	}}
+
+	srv := NewProxyServer(providers, discardLogger())
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"claude-sonnet-4-5","thinking":{"type":"enabled"}}`))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+}
+
+func TestModelMappingThinkingDisabledUsesSonnet(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var data map[string]interface{}
+		json.Unmarshal(body, &data)
+		if data["model"] != "my-sonnet" {
+			t.Errorf("model = %v, want %q", data["model"], "my-sonnet")
+		}
+		w.WriteHeader(200)
+	}))
+	defer backend.Close()
+
+	u, _ := url.Parse(backend.URL)
+	providers := []*Provider{{
+		Name: "test", BaseURL: u, Token: "t", Model: "default-model",
+		SonnetModel: "my-sonnet", ReasoningModel: "my-reasoning", Healthy: true,
+	}}
+
+	srv := NewProxyServer(providers, discardLogger())
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"claude-sonnet-4-5","thinking":{"type":"disabled"}}`))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+}
+
+func TestModelMappingUnknownModelUsesDefault(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var data map[string]interface{}
+		json.Unmarshal(body, &data)
+		if data["model"] != "default-model" {
+			t.Errorf("model = %v, want %q", data["model"], "default-model")
+		}
+		w.WriteHeader(200)
+	}))
+	defer backend.Close()
+
+	u, _ := url.Parse(backend.URL)
+	providers := []*Provider{{
+		Name: "test", BaseURL: u, Token: "t", Model: "default-model",
+		SonnetModel: "my-sonnet", Healthy: true,
+	}}
+
+	srv := NewProxyServer(providers, discardLogger())
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"some-unknown-model","prompt":"hi"}`))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+}
+
+func TestModelMappingNoMappingKeepsOriginal(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var data map[string]interface{}
+		json.Unmarshal(body, &data)
+		if data["model"] != "claude-sonnet-4-5" {
+			t.Errorf("model = %v, want %q", data["model"], "claude-sonnet-4-5")
+		}
+		w.WriteHeader(200)
+	}))
+	defer backend.Close()
+
+	u, _ := url.Parse(backend.URL)
+	providers := []*Provider{{
+		Name: "test", BaseURL: u, Token: "t", Healthy: true,
+	}}
+
+	srv := NewProxyServer(providers, discardLogger())
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"claude-sonnet-4-5","prompt":"hi"}`))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+}
+
+func TestModelMappingCaseInsensitive(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var data map[string]interface{}
+		json.Unmarshal(body, &data)
+		if data["model"] != "my-sonnet" {
+			t.Errorf("model = %v, want %q", data["model"], "my-sonnet")
+		}
+		w.WriteHeader(200)
+	}))
+	defer backend.Close()
+
+	u, _ := url.Parse(backend.URL)
+	providers := []*Provider{{
+		Name: "test", BaseURL: u, Token: "t",
+		SonnetModel: "my-sonnet", Healthy: true,
+	}}
+
+	srv := NewProxyServer(providers, discardLogger())
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"Claude-SONNET-4-5","prompt":"hi"}`))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+}
+
+func TestModelMappingInvalidJSON(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		// Invalid JSON should be passed through unchanged
+		if string(body) != "not json" {
+			t.Errorf("body = %q, want %q", string(body), "not json")
+		}
+		w.WriteHeader(200)
+	}))
+	defer backend.Close()
+
+	u, _ := url.Parse(backend.URL)
+	providers := []*Provider{{
+		Name: "test", BaseURL: u, Token: "t", Model: "test-model", Healthy: true,
+	}}
+
+	srv := NewProxyServer(providers, discardLogger())
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader("not json"))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+}
+
+func TestModelMappingFailoverUsesSecondProviderMapping(t *testing.T) {
+	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	}))
+	defer backend1.Close()
+
+	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var data map[string]interface{}
+		json.Unmarshal(body, &data)
+		// Second provider should use its own sonnet mapping
+		if data["model"] != "provider2-sonnet" {
+			t.Errorf("model = %v, want %q", data["model"], "provider2-sonnet")
+		}
+		w.WriteHeader(200)
+	}))
+	defer backend2.Close()
+
+	u1, _ := url.Parse(backend1.URL)
+	u2, _ := url.Parse(backend2.URL)
+	providers := []*Provider{
+		{Name: "p1", BaseURL: u1, Token: "t1", SonnetModel: "provider1-sonnet", Healthy: true},
+		{Name: "p2", BaseURL: u2, Token: "t2", SonnetModel: "provider2-sonnet", Healthy: true},
+	}
+
+	srv := NewProxyServer(providers, discardLogger())
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"claude-sonnet-4-5"}`))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+}
+
+// TestFailoverAppliesAllProviderConfig verifies that when failing over to the
+// second provider, auth token, base URL, and all model type mappings are
+// correctly applied from the second provider's configuration.
+func TestFailoverAppliesAllProviderConfig(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		wantModel string
+	}{
+		{"sonnet", `{"model":"claude-sonnet-4-5"}`, "p2-sonnet"},
+		{"haiku", `{"model":"claude-haiku-4-5"}`, "p2-haiku"},
+		{"opus", `{"model":"claude-opus-4-5"}`, "p2-opus"},
+		{"thinking", `{"model":"claude-sonnet-4-5","thinking":{"type":"enabled"}}`, "p2-reasoning"},
+		{"unknown fallback", `{"model":"some-custom-model"}`, "p2-default"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(500)
+			}))
+			defer backend1.Close()
+
+			backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Verify auth token from second provider
+				if r.Header.Get("x-api-key") != "token-p2" {
+					t.Errorf("x-api-key = %q, want %q", r.Header.Get("x-api-key"), "token-p2")
+				}
+				if r.Header.Get("Authorization") != "Bearer token-p2" {
+					t.Errorf("Authorization = %q, want %q", r.Header.Get("Authorization"), "Bearer token-p2")
+				}
+
+				// Verify model mapping from second provider
+				body, _ := io.ReadAll(r.Body)
+				var data map[string]interface{}
+				json.Unmarshal(body, &data)
+				if data["model"] != tt.wantModel {
+					t.Errorf("model = %v, want %q", data["model"], tt.wantModel)
+				}
+
+				w.WriteHeader(200)
+				w.Write([]byte(`{"ok":true}`))
+			}))
+			defer backend2.Close()
+
+			u1, _ := url.Parse(backend1.URL)
+			u2, _ := url.Parse(backend2.URL)
+			providers := []*Provider{
+				{
+					Name: "p1", BaseURL: u1, Token: "token-p1",
+					Model: "p1-default", SonnetModel: "p1-sonnet", HaikuModel: "p1-haiku",
+					OpusModel: "p1-opus", ReasoningModel: "p1-reasoning", Healthy: true,
+				},
+				{
+					Name: "p2", BaseURL: u2, Token: "token-p2",
+					Model: "p2-default", SonnetModel: "p2-sonnet", HaikuModel: "p2-haiku",
+					OpusModel: "p2-opus", ReasoningModel: "p2-reasoning", Healthy: true,
+				},
+			}
+
+			srv := NewProxyServer(providers, discardLogger())
+			req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(tt.body))
+			w := httptest.NewRecorder()
+			srv.ServeHTTP(w, req)
+
+			if w.Code != 200 {
+				t.Errorf("status = %d, want 200", w.Code)
+			}
+		})
+	}
+}
+
+// TestFailoverThreeProviders verifies correct mapping when first two providers
+// fail and the third succeeds.
+func TestFailoverThreeProviders(t *testing.T) {
+	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(429)
+	}))
+	defer backend1.Close()
+
+	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	}))
+	defer backend2.Close()
+
+	backend3 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("x-api-key") != "token-p3" {
+			t.Errorf("x-api-key = %q, want %q", r.Header.Get("x-api-key"), "token-p3")
+		}
+		body, _ := io.ReadAll(r.Body)
+		var data map[string]interface{}
+		json.Unmarshal(body, &data)
+		if data["model"] != "p3-haiku" {
+			t.Errorf("model = %v, want %q", data["model"], "p3-haiku")
+		}
+		w.WriteHeader(200)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer backend3.Close()
+
+	u1, _ := url.Parse(backend1.URL)
+	u2, _ := url.Parse(backend2.URL)
+	u3, _ := url.Parse(backend3.URL)
+	providers := []*Provider{
+		{Name: "p1", BaseURL: u1, Token: "token-p1", HaikuModel: "p1-haiku", Healthy: true},
+		{Name: "p2", BaseURL: u2, Token: "token-p2", HaikuModel: "p2-haiku", Healthy: true},
+		{Name: "p3", BaseURL: u3, Token: "token-p3", HaikuModel: "p3-haiku", Healthy: true},
+	}
+
+	srv := NewProxyServer(providers, discardLogger())
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"claude-haiku-4-5"}`))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+}
+
+func TestHasThinkingEnabled(t *testing.T) {
+	tests := []struct {
+		name string
+		body map[string]interface{}
+		want bool
+	}{
+		{"enabled", map[string]interface{}{"thinking": map[string]interface{}{"type": "enabled"}}, true},
+		{"disabled", map[string]interface{}{"thinking": map[string]interface{}{"type": "disabled"}}, false},
+		{"no thinking", map[string]interface{}{}, false},
+		{"thinking not object", map[string]interface{}{"thinking": "enabled"}, false},
+		{"thinking no type", map[string]interface{}{"thinking": map[string]interface{}{}}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := hasThinkingEnabled(tt.body)
+			if got != tt.want {
+				t.Errorf("hasThinkingEnabled() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -96,7 +471,7 @@ func TestServeHTTPSuccess(t *testing.T) {
 			t.Errorf("Authorization = %q", r.Header.Get("Authorization"))
 		}
 
-		// Verify model injection
+		// Verify model mapping (sonnet → test-model via default)
 		body, _ := io.ReadAll(r.Body)
 		var data map[string]interface{}
 		json.Unmarshal(body, &data)
@@ -117,7 +492,7 @@ func TestServeHTTPSuccess(t *testing.T) {
 
 	srv := NewProxyServer(providers, discardLogger())
 
-	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"prompt":"hi"}`))
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{"model":"some-model","prompt":"hi"}`))
 	w := httptest.NewRecorder()
 	srv.ServeHTTP(w, req)
 
@@ -471,7 +846,8 @@ func (e *errorReader) Read(p []byte) (int, error) {
 	return 0, fmt.Errorf("read error")
 }
 
-// TestServeHTTP200DoesNotFailover tests that 2xx/3xx/4xx (non-429) don't trigger failover.
+// TestServeHTTP4xxNoFailover tests that non-auth 4xx (e.g. 400) don't trigger failover.
+// Auth errors (401, 403) are tested separately and DO trigger failover.
 func TestServeHTTP4xxNoFailover(t *testing.T) {
 	callCount := 0
 	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -505,5 +881,188 @@ func TestServeHTTP4xxNoFailover(t *testing.T) {
 	}
 	if callCount != 1 {
 		t.Errorf("callCount = %d, want 1 (no failover for 400)", callCount)
+	}
+}
+
+// TestServeHTTPFailoverOn401 tests that 401 triggers failover to next provider.
+func TestServeHTTPFailoverOn401(t *testing.T) {
+	callCount := 0
+	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.WriteHeader(401)
+		w.Write([]byte(`{"error":"unauthorized"}`))
+	}))
+	defer backend1.Close()
+
+	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.WriteHeader(200)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer backend2.Close()
+
+	u1, _ := url.Parse(backend1.URL)
+	u2, _ := url.Parse(backend2.URL)
+	providers := []*Provider{
+		{Name: "p1", BaseURL: u1, Token: "bad-token", Model: "m", Healthy: true},
+		{Name: "p2", BaseURL: u2, Token: "good-token", Model: "m", Healthy: true},
+	}
+
+	srv := NewProxyServer(providers, discardLogger())
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{}`))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("status = %d, want 200 (failover from 401)", w.Code)
+	}
+	if callCount != 2 {
+		t.Errorf("callCount = %d, want 2", callCount)
+	}
+}
+
+// TestServeHTTPFailoverOn403 tests that 403 triggers failover to next provider.
+func TestServeHTTPFailoverOn403(t *testing.T) {
+	callCount := 0
+	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.WriteHeader(403)
+		w.Write([]byte(`{"error":"forbidden"}`))
+	}))
+	defer backend1.Close()
+
+	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.WriteHeader(200)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer backend2.Close()
+
+	u1, _ := url.Parse(backend1.URL)
+	u2, _ := url.Parse(backend2.URL)
+	providers := []*Provider{
+		{Name: "p1", BaseURL: u1, Token: "t1", Model: "m", Healthy: true},
+		{Name: "p2", BaseURL: u2, Token: "t2", Model: "m", Healthy: true},
+	}
+
+	srv := NewProxyServer(providers, discardLogger())
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{}`))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("status = %d, want 200 (failover from 403)", w.Code)
+	}
+	if callCount != 2 {
+		t.Errorf("callCount = %d, want 2", callCount)
+	}
+}
+
+// TestServeHTTPFailoverOn402 tests that 402 (payment required) triggers failover.
+func TestServeHTTPFailoverOn402(t *testing.T) {
+	callCount := 0
+	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.WriteHeader(402)
+		w.Write([]byte(`{"error":"payment required"}`))
+	}))
+	defer backend1.Close()
+
+	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.WriteHeader(200)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer backend2.Close()
+
+	u1, _ := url.Parse(backend1.URL)
+	u2, _ := url.Parse(backend2.URL)
+	providers := []*Provider{
+		{Name: "p1", BaseURL: u1, Token: "t1", Model: "m", Healthy: true},
+		{Name: "p2", BaseURL: u2, Token: "t2", Model: "m", Healthy: true},
+	}
+
+	srv := NewProxyServer(providers, discardLogger())
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(`{}`))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("status = %d, want 200 (failover from 402)", w.Code)
+	}
+	if callCount != 2 {
+		t.Errorf("callCount = %d, want 2", callCount)
+	}
+}
+
+// TestAuthFailedLongBackoff tests that auth failure (401/403) uses long backoff.
+func TestAuthFailedLongBackoff(t *testing.T) {
+	u, _ := url.Parse("https://api.example.com")
+	p := &Provider{Name: "p1", BaseURL: u, Token: "t", Healthy: true}
+
+	p.MarkAuthFailed()
+
+	if p.Healthy {
+		t.Error("expected Healthy = false after MarkAuthFailed")
+	}
+	if !p.AuthFailed {
+		t.Error("expected AuthFailed = true after MarkAuthFailed")
+	}
+	if p.Backoff != AuthInitialBackoff {
+		t.Errorf("Backoff = %v, want %v", p.Backoff, AuthInitialBackoff)
+	}
+
+	// Second auth failure should double the backoff
+	p.MarkAuthFailed()
+	want := AuthInitialBackoff * 2
+	if p.Backoff != want {
+		t.Errorf("Backoff after 2nd failure = %v, want %v", p.Backoff, want)
+	}
+
+	// Verify it's much larger than transient backoff
+	if p.Backoff < MaxBackoff {
+		t.Errorf("auth backoff %v should be larger than transient max %v", p.Backoff, MaxBackoff)
+	}
+}
+
+// TestAuthFailedRecovery tests that a provider recovers after auth backoff expires.
+func TestAuthFailedRecovery(t *testing.T) {
+	u, _ := url.Parse("https://api.example.com")
+	p := &Provider{Name: "p1", BaseURL: u, Token: "t", Healthy: true}
+
+	p.MarkAuthFailed()
+
+	// Immediately after failure, should be unhealthy
+	if p.IsHealthy() {
+		t.Error("expected unhealthy immediately after MarkAuthFailed")
+	}
+
+	// Simulate time passing beyond the backoff
+	p.mu.Lock()
+	p.FailedAt = time.Now().Add(-AuthInitialBackoff - time.Second)
+	p.mu.Unlock()
+
+	// Should now be considered healthy again
+	if !p.IsHealthy() {
+		t.Error("expected healthy after backoff period expires")
+	}
+}
+
+// TestMarkHealthyClearsAuthFailed tests that MarkHealthy resets AuthFailed flag.
+func TestMarkHealthyClearsAuthFailed(t *testing.T) {
+	u, _ := url.Parse("https://api.example.com")
+	p := &Provider{Name: "p1", BaseURL: u, Token: "t", Healthy: true}
+
+	p.MarkAuthFailed()
+	if !p.AuthFailed {
+		t.Error("expected AuthFailed = true")
+	}
+
+	p.MarkHealthy()
+	if p.AuthFailed {
+		t.Error("expected AuthFailed = false after MarkHealthy")
+	}
+	if p.Backoff != 0 {
+		t.Errorf("Backoff = %v, want 0 after MarkHealthy", p.Backoff)
 	}
 }

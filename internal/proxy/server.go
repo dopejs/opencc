@@ -50,6 +50,15 @@ func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		// Auth/account errors → failover with long backoff
+		if resp.StatusCode == 401 || resp.StatusCode == 402 || resp.StatusCode == 403 {
+			s.Logger.Printf("[%s] got %d (auth/account error), failing over", p.Name, resp.StatusCode)
+			resp.Body.Close()
+			p.MarkAuthFailed()
+			continue
+		}
+
+		// Transient errors → failover with short backoff
 		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
 			s.Logger.Printf("[%s] got %d, failing over", p.Name, resp.StatusCode)
 			resp.Body.Close()
@@ -67,11 +76,8 @@ func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *ProxyServer) forwardRequest(r *http.Request, p *Provider, body []byte) (*http.Response, error) {
-	// Inject model into request body if provider has one
-	modifiedBody := body
-	if p.Model != "" {
-		modifiedBody = injectModel(body, p.Model)
-	}
+	// Apply per-provider model mapping
+	modifiedBody := s.applyModelMapping(body, p)
 
 	targetURL := singleJoiningSlash(p.BaseURL.String(), r.URL.Path)
 	if r.URL.RawQuery != "" {
@@ -129,17 +135,77 @@ func (s *ProxyServer) copyResponse(w http.ResponseWriter, resp *http.Response) {
 	}
 }
 
-func injectModel(body []byte, model string) []byte {
+// applyModelMapping detects the model type in the request and maps it to
+// the provider's corresponding model. This ensures each provider gets the
+// correct model name during failover.
+//
+// Mapping priority:
+//  1. Thinking mode enabled → ReasoningModel
+//  2. Model name contains "haiku" → HaikuModel
+//  3. Model name contains "opus" → OpusModel
+//  4. Model name contains "sonnet" → SonnetModel
+//  5. Fallback → Model (default model)
+func (s *ProxyServer) applyModelMapping(body []byte, p *Provider) []byte {
 	var data map[string]interface{}
 	if err := json.Unmarshal(body, &data); err != nil {
 		return body
 	}
-	data["model"] = model
+
+	originalModel, ok := data["model"].(string)
+	if !ok || originalModel == "" {
+		return body
+	}
+
+	mapped := s.mapModel(originalModel, data, p)
+	if mapped == originalModel {
+		return body
+	}
+
+	s.Logger.Printf("[%s] model mapping: %s → %s", p.Name, originalModel, mapped)
+	data["model"] = mapped
 	modified, err := json.Marshal(data)
 	if err != nil {
 		return body
 	}
 	return modified
+}
+
+// mapModel determines which provider model to use based on the request.
+func (s *ProxyServer) mapModel(original string, body map[string]interface{}, p *Provider) string {
+	// 1. Thinking mode → reasoning model
+	if hasThinkingEnabled(body) && p.ReasoningModel != "" {
+		return p.ReasoningModel
+	}
+
+	// 2. Match by model type (case-insensitive)
+	lower := strings.ToLower(original)
+	if strings.Contains(lower, "haiku") && p.HaikuModel != "" {
+		return p.HaikuModel
+	}
+	if strings.Contains(lower, "opus") && p.OpusModel != "" {
+		return p.OpusModel
+	}
+	if strings.Contains(lower, "sonnet") && p.SonnetModel != "" {
+		return p.SonnetModel
+	}
+
+	// 3. Default model
+	if p.Model != "" {
+		return p.Model
+	}
+
+	// 4. No mapping — keep original
+	return original
+}
+
+// hasThinkingEnabled checks if the request body has thinking mode enabled.
+func hasThinkingEnabled(body map[string]interface{}) bool {
+	thinking, ok := body["thinking"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	t, ok := thinking["type"].(string)
+	return ok && t == "enabled"
 }
 
 func singleJoiningSlash(a, b string) string {

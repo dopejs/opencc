@@ -7,19 +7,26 @@ import (
 )
 
 const (
-	InitialBackoff = 60 * time.Second
-	MaxBackoff     = 5 * time.Minute
+	InitialBackoff     = 60 * time.Second
+	MaxBackoff         = 5 * time.Minute
+	AuthInitialBackoff = 30 * time.Minute
+	AuthMaxBackoff     = 2 * time.Hour
 )
 
 type Provider struct {
-	Name     string
-	BaseURL  *url.URL
-	Token    string
-	Model    string
-	Healthy  bool
-	FailedAt time.Time
-	Backoff  time.Duration
-	mu       sync.Mutex
+	Name           string
+	BaseURL        *url.URL
+	Token          string
+	Model          string
+	ReasoningModel string
+	HaikuModel     string
+	OpusModel      string
+	SonnetModel    string
+	Healthy        bool
+	AuthFailed     bool
+	FailedAt       time.Time
+	Backoff        time.Duration
+	mu             sync.Mutex
 }
 
 func (p *Provider) IsHealthy() bool {
@@ -50,9 +57,26 @@ func (p *Provider) MarkFailed() {
 	}
 }
 
+func (p *Provider) MarkAuthFailed() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.Healthy = false
+	p.AuthFailed = true
+	p.FailedAt = time.Now()
+	if p.Backoff < AuthInitialBackoff {
+		p.Backoff = AuthInitialBackoff
+	} else {
+		p.Backoff *= 2
+		if p.Backoff > AuthMaxBackoff {
+			p.Backoff = AuthMaxBackoff
+		}
+	}
+}
+
 func (p *Provider) MarkHealthy() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.Healthy = true
+	p.AuthFailed = false
 	p.Backoff = 0
 }
