@@ -111,6 +111,10 @@ func (m fallbackModel) handleKey(msg tea.KeyMsg) (fallbackModel, tea.Cmd) {
 		}
 	case "s", "ctrl+s", "cmd+s":
 		return m.saveAndExit()
+	case "r":
+		// Open routing editor
+		profile := m.profile
+		return m, func() tea.Msg { return switchToRoutingMsg{profile: profile} }
 	}
 	return m, nil
 }
@@ -247,7 +251,7 @@ func (m fallbackModel) view(width, height int) string {
 		if m.grabbed {
 			b.WriteString(helpStyle.Render("  ↑↓ reorder • enter/esc drop"))
 		} else {
-			b.WriteString(helpStyle.Render("  ↑↓ move • space toggle • enter reorder • s/" + saveKeyHint() + " save • esc cancel"))
+			b.WriteString(helpStyle.Render("  ↑↓ move • space toggle • enter reorder • r routing • s/" + saveKeyHint() + " save • esc cancel"))
 		}
 	}
 

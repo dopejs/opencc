@@ -16,6 +16,7 @@ const (
 	viewEditor
 	viewFallback
 	viewProfileList
+	viewRouting
 )
 
 type model struct {
@@ -24,6 +25,7 @@ type model struct {
 	editor      editorModel
 	fallback    fallbackModel
 	profileList profileListModel
+	routing     routingModel
 	width       int
 	height      int
 	err         error
@@ -61,6 +63,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateFallback(msg)
 	case viewProfileList:
 		return m.updateProfileList(msg)
+	case viewRouting:
+		return m.updateRouting(msg)
 	}
 	return m, nil
 }
@@ -75,6 +79,8 @@ func (m model) View() string {
 		return m.fallback.view(m.width, m.height)
 	case viewProfileList:
 		return m.profileList.view(m.width, m.height)
+	case viewRouting:
+		return m.routing.view(m.width, m.height)
 	}
 	return ""
 }
@@ -229,16 +235,34 @@ func (m model) updateEditor(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) updateFallback(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case switchToListMsg:
 		// Return to profile list (fallback is always entered from there)
+		m.currentView = viewProfileList
+		m.profileList = newProfileListModel()
+		return m, m.profileList.init()
+	case switchToRoutingMsg:
+		m.currentView = viewRouting
+		m.routing = newRoutingModel(msg.profile)
+		return m, m.routing.init()
+	}
+
+	var cmd tea.Cmd
+	m.fallback, cmd = m.fallback.update(msg)
+	return m, cmd
+}
+
+func (m model) updateRouting(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg.(type) {
+	case switchToListMsg:
+		// Return to profile list
 		m.currentView = viewProfileList
 		m.profileList = newProfileListModel()
 		return m, m.profileList.init()
 	}
 
 	var cmd tea.Cmd
-	m.fallback, cmd = m.fallback.update(msg)
+	m.routing, cmd = m.routing.update(msg)
 	return m, cmd
 }
 

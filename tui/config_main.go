@@ -351,6 +351,9 @@ func (m configMainWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case configEditProviderMsg, configEditGroupMsg, configAddGroupMsg:
 			// Transition from addTypeSelector to actual editor
 			m.inSubEdit = false
+		case switchToRoutingMsg:
+			// Routing editor requested from within fallback editor
+			m.inSubEdit = false
 		default:
 			var cmd tea.Cmd
 			m.subEditor, cmd = m.subEditor.Update(msg)
@@ -388,6 +391,11 @@ func (m configMainWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		gc := newGroupCreateModel("")
 		m.subEditor = &groupCreateWrapper{model: gc}
 		return m, gc.Init()
+	case switchToRoutingMsg:
+		m.inSubEdit = true
+		rm := newRoutingModel(msg.profile)
+		m.subEditor = &routingWrapper{routing: rm}
+		return m, rm.init()
 	}
 
 	var cmd tea.Cmd
