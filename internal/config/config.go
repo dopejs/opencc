@@ -1,114 +1,47 @@
 package config
 
-import (
-	"bufio"
-	"fmt"
-	"os"
-	"path/filepath"
-	"sort"
-	"strings"
+import "os"
 
-	"github.com/anthropics/opencc/internal/envfile"
+const (
+	ConfigDir  = ".opencc"
+	ConfigFile = "opencc.json"
+	LegacyDir  = ".cc_envs"
 )
 
-// ProfileConfPath returns the conf file path for a profile.
-// "default" or "" → fallback.conf, others → fallback.<name>.conf
-func ProfileConfPath(profile string) string {
-	if profile == "" || profile == "default" {
-		return filepath.Join(envfile.EnvsPath(), "fallback.conf")
-	}
-	return filepath.Join(envfile.EnvsPath(), "fallback."+profile+".conf")
+// ProviderConfig holds connection and model settings for a single API provider.
+type ProviderConfig struct {
+	BaseURL        string `json:"base_url"`
+	AuthToken      string `json:"auth_token"`
+	Model          string `json:"model,omitempty"`
+	ReasoningModel string `json:"reasoning_model,omitempty"`
+	HaikuModel     string `json:"haiku_model,omitempty"`
+	OpusModel      string `json:"opus_model,omitempty"`
+	SonnetModel    string `json:"sonnet_model,omitempty"`
 }
 
-// FallbackConfPath returns the path to fallback.conf (default profile).
-func FallbackConfPath() string {
-	return ProfileConfPath("default")
+// ExportToEnv sets all ANTHROPIC_* environment variables from this provider config.
+func (p *ProviderConfig) ExportToEnv() {
+	os.Setenv("ANTHROPIC_BASE_URL", p.BaseURL)
+	os.Setenv("ANTHROPIC_AUTH_TOKEN", p.AuthToken)
+	if p.Model != "" {
+		os.Setenv("ANTHROPIC_MODEL", p.Model)
+	}
+	if p.ReasoningModel != "" {
+		os.Setenv("ANTHROPIC_REASONING_MODEL", p.ReasoningModel)
+	}
+	if p.HaikuModel != "" {
+		os.Setenv("ANTHROPIC_DEFAULT_HAIKU_MODEL", p.HaikuModel)
+	}
+	if p.OpusModel != "" {
+		os.Setenv("ANTHROPIC_DEFAULT_OPUS_MODEL", p.OpusModel)
+	}
+	if p.SonnetModel != "" {
+		os.Setenv("ANTHROPIC_DEFAULT_SONNET_MODEL", p.SonnetModel)
+	}
 }
 
-// ReadProfileOrder reads the provider names from a profile's conf file.
-func ReadProfileOrder(profile string) ([]string, error) {
-	path := ProfileConfPath(profile)
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	var names []string
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		names = append(names, line)
-	}
-	return names, scanner.Err()
+// OpenCCConfig is the top-level configuration structure stored in opencc.json.
+type OpenCCConfig struct {
+	Providers map[string]*ProviderConfig `json:"providers"`
+	Profiles  map[string][]string        `json:"profiles"`
 }
-
-// WriteProfileOrder writes the provider names to a profile's conf file.
-func WriteProfileOrder(profile string, names []string) error {
-	dir := envfile.EnvsPath()
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-	var b strings.Builder
-	for _, n := range names {
-		fmt.Fprintln(&b, n)
-	}
-	return os.WriteFile(ProfileConfPath(profile), []byte(b.String()), 0644)
-}
-
-// RemoveFromProfileOrder removes a name from a profile's conf file.
-func RemoveFromProfileOrder(profile, name string) error {
-	names, err := ReadProfileOrder(profile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	var filtered []string
-	for _, n := range names {
-		if n != name {
-			filtered = append(filtered, n)
-		}
-	}
-	return WriteProfileOrder(profile, filtered)
-}
-
-// DeleteProfile deletes a profile's conf file. Cannot delete "default".
-func DeleteProfile(profile string) error {
-	if profile == "" || profile == "default" {
-		return fmt.Errorf("cannot delete the default profile")
-	}
-	return os.Remove(ProfileConfPath(profile))
-}
-
-// ListProfiles returns all profile names by globbing fallback*.conf files.
-func ListProfiles() []string {
-	dir := envfile.EnvsPath()
-	matches, _ := filepath.Glob(filepath.Join(dir, "fallback*.conf"))
-	var profiles []string
-	for _, m := range matches {
-		base := filepath.Base(m)
-		switch {
-		case base == "fallback.conf":
-			profiles = append(profiles, "default")
-		case strings.HasPrefix(base, "fallback.") && strings.HasSuffix(base, ".conf"):
-			name := strings.TrimPrefix(base, "fallback.")
-			name = strings.TrimSuffix(name, ".conf")
-			if name != "" {
-				profiles = append(profiles, name)
-			}
-		}
-	}
-	sort.Strings(profiles)
-	return profiles
-}
-
-// Delegate functions for backward compatibility.
-
-func ReadFallbackOrder() ([]string, error)      { return ReadProfileOrder("default") }
-func WriteFallbackOrder(names []string) error    { return WriteProfileOrder("default", names) }
-func RemoveFromFallbackOrder(name string) error  { return RemoveFromProfileOrder("default", name) }

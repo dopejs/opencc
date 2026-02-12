@@ -3,9 +3,10 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/dopejs/opencc/internal/config"
 )
 
 type view int
@@ -141,7 +142,11 @@ func (m createFirstModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" || msg.String() == "esc" {
+		if msg.String() == "ctrl+c" {
+			m.cancelled = true
+			return m, tea.Quit
+		}
+		if msg.String() == "esc" && !m.editor.saved {
 			m.cancelled = true
 			return m, tea.Quit
 		}
@@ -164,17 +169,6 @@ func (m createFirstModel) View() string {
 	return b.String()
 }
 
-// Styles
-var (
-	titleStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99"))
-	selectedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("170"))
-	grabbedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("170")).Bold(true)
-	dimStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	helpStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	errorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	successStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("82"))
-)
-
 // Messages
 type switchToListMsg struct{}
 type switchToEditorMsg struct {
@@ -186,6 +180,16 @@ type switchToFallbackMsg struct {
 type switchToProfileListMsg struct{}
 type statusMsg struct {
 	text string
+}
+type saveExitMsg struct{}
+
+// saveExitDelay is the duration to show the "Saved" feedback before exiting.
+const saveExitDelay = 500 * time.Millisecond
+
+func saveExitTick() tea.Cmd {
+	return tea.Tick(saveExitDelay, func(time.Time) tea.Msg {
+		return saveExitMsg{}
+	})
 }
 
 func (m model) updateList(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -280,5 +284,66 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// RunSelectType runs a selector TUI to choose between "provider" and "group".
+func RunSelectType() (string, error) {
+	items := []selectorItem{
+		{name: "provider"},
+		{name: "group"},
+	}
+	return RunSelector("Select type", items)
+}
+
+// RunSelectProvider runs a selector TUI to choose a provider.
+// minCount specifies the minimum number of providers required (for delete validation).
+func RunSelectProvider(minCount int) (string, error) {
+	names := config.ProviderNames()
+	if len(names) == 0 {
+		return "", fmt.Errorf("no providers configured")
+	}
+
+	items := make([]selectorItem, len(names))
+	for i, name := range names {
+		items[i] = selectorItem{name: name}
+		if minCount > 0 && len(names) <= minCount {
+			items[i].disabled = true
+			items[i].reason = "cannot delete last provider"
+		}
+	}
+	return RunSelector("Select provider", items)
+}
+
+// RunSelectGroup runs a selector TUI to choose a group.
+// excludeDefault prevents selecting the "default" group.
+func RunSelectGroup(excludeDefault bool) (string, error) {
+	names := config.ListProfiles()
+	if len(names) == 0 {
+		return "", fmt.Errorf("no groups configured")
+	}
+
+	items := make([]selectorItem, len(names))
+	for i, name := range names {
+		items[i] = selectorItem{name: name}
+		if excludeDefault && name == "default" {
+			items[i].disabled = true
+			items[i].reason = "cannot delete default"
+		}
+	}
+	return RunSelector("Select group", items)
+}
+
+// RunAddGroup runs the group creation flow: name input then group editor.
+func RunAddGroup() error {
+	name, err := RunGroupCreate()
+	if err != nil {
+		return err
+	}
+	return RunEditGroup(name)
+}
+
+// RunEditGroup runs a standalone group editor TUI.
+func RunEditGroup(name string) error {
+	return RunEditProfile(name)
 }
 

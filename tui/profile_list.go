@@ -6,15 +6,15 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/anthropics/opencc/internal/config"
+	"github.com/dopejs/opencc/internal/config"
 )
 
 type profileListModel struct {
-	profiles []profileEntry
-	cursor   int
-	status   string
-	deleting bool
-	creating bool
+	profiles  []profileEntry
+	cursor    int
+	status    string
+	deleting  bool
+	creating  bool
 	nameInput textinput.Model
 }
 
@@ -25,7 +25,7 @@ type profileEntry struct {
 
 func newProfileListModel() profileListModel {
 	ti := textinput.New()
-	ti.Placeholder = "profile name"
+	ti.Placeholder = "group name"
 	ti.Prompt = "  Name: "
 	ti.CharLimit = 64
 	return profileListModel{nameInput: ti}
@@ -94,7 +94,7 @@ func (m profileListModel) handleKey(msg tea.KeyMsg) (profileListModel, tea.Cmd) 
 	case "d":
 		if len(m.profiles) > 0 {
 			if m.profiles[m.cursor].name == "default" {
-				m.status = "Cannot delete the default profile"
+				m.status = "Cannot delete the default group"
 			} else {
 				m.deleting = true
 			}
@@ -131,7 +131,7 @@ func (m profileListModel) handleCreate(msg tea.KeyMsg) (profileListModel, tea.Cm
 		}
 		m.creating = false
 		m.nameInput.Blur()
-		// Create empty profile and enter its fallback editor
+		// Create empty group and enter its editor
 		config.WriteProfileOrder(name, nil)
 		return m, func() tea.Msg { return switchToFallbackMsg{profile: name} }
 	}
@@ -144,12 +144,12 @@ func (m profileListModel) handleCreate(msg tea.KeyMsg) (profileListModel, tea.Cm
 func (m profileListModel) view(width, height int) string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("  Fallback Profiles"))
+	b.WriteString(titleStyle.Render("  Groups"))
 	b.WriteString("\n\n")
 
 	if len(m.profiles) == 0 {
-		b.WriteString("  No profiles found.\n")
-		b.WriteString("  Press 'a' to create a new profile.\n")
+		b.WriteString("  No groups found.\n")
+		b.WriteString("  Press 'a' to create a new group.\n")
 	} else {
 		for i, p := range m.profiles {
 			cursor := "  "
@@ -170,7 +170,7 @@ func (m profileListModel) view(width, height int) string {
 		b.WriteString("\n")
 		b.WriteString(helpStyle.Render("  enter:create  esc:cancel"))
 	} else if m.deleting && m.cursor < len(m.profiles) {
-		b.WriteString(errorStyle.Render(fmt.Sprintf("  Delete profile '%s'? (y/n)", m.profiles[m.cursor].name)))
+		b.WriteString(errorStyle.Render(fmt.Sprintf("  Delete group '%s'? (y/n)", m.profiles[m.cursor].name)))
 	} else {
 		if m.status != "" {
 			b.WriteString(errorStyle.Render("  " + m.status))

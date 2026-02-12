@@ -4,7 +4,7 @@ Claude Code 多环境切换器，支持 API 代理自动故障转移。
 
 ## 功能
 
-- **多配置管理** — 在 `~/.cc_envs/` 中维护多个 API 配置，随时切换
+- **多配置管理** — 在 `~/.opencc/opencc.json` 中统一管理所有 API 配置，随时切换
 - **代理故障转移** — 内置 HTTP 代理，当主 provider 不可用时自动切换到备用
 - **Fallback Profiles** — 多个命名的故障转移配置，按场景快速切换（work / staging / …）
 - **TUI 配置界面** — 交互式终端界面管理配置、profile 和故障转移顺序
@@ -27,18 +27,36 @@ curl -fsSL https://raw.githubusercontent.com/dopejs/opencc/main/install.sh | sh 
 
 ### 创建配置
 
-在 `~/.cc_envs/` 下创建 `.env` 文件，例如 `~/.cc_envs/work.env`：
-
-```env
-ANTHROPIC_BASE_URL=https://api.anthropic.com
-ANTHROPIC_AUTH_TOKEN=sk-ant-xxx
-ANTHROPIC_MODEL=claude-sonnet-4-20250514
-```
-
-也可以通过 TUI 界面创建：
+通过 TUI 界面创建：
 
 ```sh
 opencc config
+```
+
+或手动编辑 `~/.opencc/opencc.json`：
+
+```json
+{
+  "providers": {
+    "work": {
+      "base_url": "https://api.anthropic.com",
+      "auth_token": "sk-ant-xxx",
+      "model": "claude-sonnet-4-5",
+      "reasoning_model": "claude-sonnet-4-5-thinking",
+      "haiku_model": "claude-haiku-4-5",
+      "opus_model": "claude-opus-4-5",
+      "sonnet_model": "claude-sonnet-4-5"
+    },
+    "backup": {
+      "base_url": "https://backup.example.com",
+      "auth_token": "sk-..."
+    }
+  },
+  "profiles": {
+    "default": ["work", "backup"],
+    "staging": ["staging-provider"]
+  }
+}
 ```
 
 ### 命令一览
@@ -61,20 +79,16 @@ opencc config
 
 opencc 支持多个命名的 fallback profile，用于不同使用场景。
 
-#### Profile 文件
+Profile 配置在 `~/.opencc/opencc.json` 的 `profiles` 字段中：
 
-| 文件 | Profile |
-|------|---------|
-| `~/.cc_envs/fallback.conf` | default（默认） |
-| `~/.cc_envs/fallback.work.conf` | work |
-| `~/.cc_envs/fallback.staging.conf` | staging |
-
-每个文件格式相同，每行一个 provider 名称：
-
-```
-work
-backup
-personal
+```json
+{
+  "profiles": {
+    "default": ["work", "backup", "personal"],
+    "work": ["work-primary", "work-secondary"],
+    "staging": ["staging-provider"]
+  }
+}
 ```
 
 #### 使用 Profile
@@ -114,18 +128,24 @@ opencc upgrade 1.2.3
 
 | 文件 | 说明 |
 |------|------|
-| `~/.cc_envs/*.env` | API 配置文件，每个文件对应一个 provider |
-| `~/.cc_envs/fallback.conf` | default profile 的故障转移顺序 |
-| `~/.cc_envs/fallback.<name>.conf` | 命名 profile 的故障转移顺序 |
-| `~/.cc_envs/proxy.log` | 代理运行日志 |
+| `~/.opencc/opencc.json` | 统一 JSON 配置文件（providers + profiles） |
+| `~/.opencc/proxy.log` | 代理运行日志 |
 
-每个 `.env` 文件支持以下变量：
+每个 provider 支持以下字段：
 
-| 变量 | 必填 | 说明 |
+| 字段 | 必填 | 说明 |
 |------|------|------|
-| `ANTHROPIC_BASE_URL` | 是 | API 地址 |
-| `ANTHROPIC_AUTH_TOKEN` | 是 | API 密钥 |
-| `ANTHROPIC_MODEL` | 否 | 模型名称，默认 claude-sonnet-4-20250514 |
+| `base_url` | 是 | API 地址 |
+| `auth_token` | 是 | API 密钥 |
+| `model` | 否 | 主模型，默认 `claude-sonnet-4-5` |
+| `reasoning_model` | 否 | 推理模型，默认 `claude-sonnet-4-5-thinking` |
+| `haiku_model` | 否 | Haiku 模型，默认 `claude-haiku-4-5` |
+| `opus_model` | 否 | Opus 模型，默认 `claude-opus-4-5` |
+| `sonnet_model` | 否 | Sonnet 模型，默认 `claude-sonnet-4-5` |
+
+### 从旧版迁移
+
+如果之前使用 `~/.cc_envs/` 格式的配置文件，opencc 会在首次运行时自动迁移到 `~/.opencc/opencc.json`。旧目录不会被删除，可以手动清理。
 
 ## 开发
 
@@ -158,8 +178,7 @@ git push origin v1.2.0
 ├── main.go              # 入口
 ├── cmd/                 # CLI 命令 (cobra)
 ├── internal/
-│   ├── config/          # fallback profile 管理
-│   ├── envfile/         # .env 文件解析
+│   ├── config/          # 统一 JSON 配置管理（Store + 迁移）
 │   └── proxy/           # HTTP 代理服务器
 ├── tui/                 # TUI 界面 (bubbletea)
 ├── install.sh           # 用户安装脚本

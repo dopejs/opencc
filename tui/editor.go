@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/anthropics/opencc/internal/config"
-	"github.com/anthropics/opencc/internal/envfile"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/dopejs/opencc/internal/config"
 )
 
 type editorField int
@@ -17,6 +17,10 @@ const (
 	fieldBaseURL
 	fieldAuthToken
 	fieldModel
+	fieldReasoningModel
+	fieldHaikuModel
+	fieldOpusModel
+	fieldSonnetModel
 	fieldCount
 )
 
@@ -25,6 +29,8 @@ type editorModel struct {
 	focus    editorField
 	editing  string // config name being edited, empty = new
 	err      string
+	saved    bool   // true = save succeeded, waiting to exit
+	status   string // "Saved" success message
 }
 
 func newEditorModel(configName string) editorModel {
@@ -36,14 +42,21 @@ func newEditorModel(configName string) editorModel {
 	}
 
 	fields[fieldName].Placeholder = "config name (e.g. work)"
-	fields[fieldName].Prompt = "  Name:       "
+	fields[fieldName].Prompt = "  Name:             "
 	fields[fieldBaseURL].Placeholder = "https://api.example.com"
-	fields[fieldBaseURL].Prompt = "  Base URL:   "
+	fields[fieldBaseURL].Prompt = "  Base URL:         "
 	fields[fieldAuthToken].Placeholder = "sk-..."
-	fields[fieldAuthToken].Prompt = "  Auth Token: "
-	fields[fieldAuthToken].EchoMode = textinput.EchoPassword
-	fields[fieldModel].Placeholder = "claude-sonnet-4-20250514"
-	fields[fieldModel].Prompt = "  Model:      "
+	fields[fieldAuthToken].Prompt = "  Auth Token:       "
+	fields[fieldModel].Placeholder = "claude-sonnet-4-5"
+	fields[fieldModel].Prompt = "  Model:            "
+	fields[fieldReasoningModel].Placeholder = "claude-sonnet-4-5-thinking"
+	fields[fieldReasoningModel].Prompt = "  Reasoning Model:  "
+	fields[fieldHaikuModel].Placeholder = "claude-haiku-4-5"
+	fields[fieldHaikuModel].Prompt = "  Haiku Model:      "
+	fields[fieldOpusModel].Placeholder = "claude-opus-4-5"
+	fields[fieldOpusModel].Prompt = "  Opus Model:       "
+	fields[fieldSonnetModel].Placeholder = "claude-sonnet-4-5"
+	fields[fieldSonnetModel].Prompt = "  Sonnet Model:     "
 
 	m := editorModel{
 		fields:  fields,
@@ -52,12 +65,16 @@ func newEditorModel(configName string) editorModel {
 
 	if configName != "" {
 		// Load existing config
-		cfg, err := envfile.LoadByName(configName)
-		if err == nil {
-			m.fields[fieldName].SetValue(cfg.Name)
-			m.fields[fieldBaseURL].SetValue(cfg.Get("ANTHROPIC_BASE_URL"))
-			m.fields[fieldAuthToken].SetValue(cfg.Get("ANTHROPIC_AUTH_TOKEN"))
-			m.fields[fieldModel].SetValue(cfg.Get("ANTHROPIC_MODEL"))
+		p := config.GetProvider(configName)
+		if p != nil {
+			m.fields[fieldName].SetValue(configName)
+			m.fields[fieldBaseURL].SetValue(p.BaseURL)
+			m.fields[fieldAuthToken].SetValue(p.AuthToken)
+			m.fields[fieldModel].SetValue(p.Model)
+			m.fields[fieldReasoningModel].SetValue(p.ReasoningModel)
+			m.fields[fieldHaikuModel].SetValue(p.HaikuModel)
+			m.fields[fieldOpusModel].SetValue(p.OpusModel)
+			m.fields[fieldSonnetModel].SetValue(p.SonnetModel)
 		}
 		// Disable name field when editing
 		m.focus = fieldBaseURL
@@ -74,6 +91,14 @@ func (m editorModel) init() tea.Cmd {
 }
 
 func (m editorModel) update(msg tea.Msg) (editorModel, tea.Cmd) {
+	// After save, ignore everything except saveExitMsg
+	if m.saved {
+		if _, ok := msg.(saveExitMsg); ok {
+			return m, func() tea.Msg { return switchToListMsg{} }
+		}
+		return m, nil
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -91,12 +116,13 @@ func (m editorModel) update(msg tea.Msg) (editorModel, tea.Cmd) {
 			m.fields[m.focus].Blur()
 			m.focus = (m.focus - 1 + fieldCount) % fieldCount
 			if m.editing != "" && m.focus == fieldName {
-				m.focus = fieldModel
+				m.focus = fieldSonnetModel
 			}
 			m.fields[m.focus].Focus()
 			return m, textinput.Blink
-		case "ctrl+s", "enter":
-			if m.focus == fieldCount-1 || msg.String() == "ctrl+s" {
+		case "ctrl+s", "cmd+s", "enter":
+			isSaveKey := (isMac && msg.String() == "cmd+s") || (!isMac && msg.String() == "ctrl+s")
+			if m.focus == fieldCount-1 || isSaveKey {
 				return m.save()
 			}
 			// Enter on non-last field = move to next
@@ -120,7 +146,6 @@ func (m editorModel) save() (editorModel, tea.Cmd) {
 	name := strings.TrimSpace(m.fields[fieldName].Value())
 	baseURL := strings.TrimSpace(m.fields[fieldBaseURL].Value())
 	token := strings.TrimSpace(m.fields[fieldAuthToken].Value())
-	model := strings.TrimSpace(m.fields[fieldModel].Value())
 
 	if name == "" {
 		m.err = "name is required"
@@ -135,67 +160,182 @@ func (m editorModel) save() (editorModel, tea.Cmd) {
 		return m, nil
 	}
 
-	entries := []envfile.Entry{
-		{Key: "ANTHROPIC_BASE_URL", Value: baseURL},
-		{Key: "ANTHROPIC_AUTH_TOKEN", Value: token},
-	}
-	if model != "" {
-		entries = append(entries, envfile.Entry{Key: "ANTHROPIC_MODEL", Value: model})
+	// Build ProviderConfig with defaults
+	modelDefaults := []struct {
+		field editorField
+		def   string
+	}{
+		{fieldModel, "claude-sonnet-4-5"},
+		{fieldReasoningModel, "claude-sonnet-4-5-thinking"},
+		{fieldHaikuModel, "claude-haiku-4-5"},
+		{fieldOpusModel, "claude-opus-4-5"},
+		{fieldSonnetModel, "claude-sonnet-4-5"},
 	}
 
-	if m.editing != "" {
-		// Update existing
-		cfg, err := envfile.LoadByName(m.editing)
-		if err != nil {
-			m.err = err.Error()
-			return m, nil
+	modelValues := make([]string, len(modelDefaults))
+	for i, md := range modelDefaults {
+		val := strings.TrimSpace(m.fields[md.field].Value())
+		if val == "" {
+			val = md.def
 		}
-		cfg.Entries = entries
-		if err := cfg.Save(); err != nil {
-			m.err = err.Error()
-			return m, nil
-		}
-	} else {
-		// Create new
-		if _, err := envfile.Create(name, entries); err != nil {
-			m.err = err.Error()
-			return m, nil
-		}
-		// Append to fallback.conf
+		modelValues[i] = val
+	}
+
+	p := &config.ProviderConfig{
+		BaseURL:        baseURL,
+		AuthToken:      token,
+		Model:          modelValues[0],
+		ReasoningModel: modelValues[1],
+		HaikuModel:     modelValues[2],
+		OpusModel:      modelValues[3],
+		SonnetModel:    modelValues[4],
+	}
+
+	if err := config.SetProvider(name, p); err != nil {
+		m.err = err.Error()
+		return m, nil
+	}
+
+	if m.editing == "" {
+		// New provider — append to default profile
 		fbOrder, _ := config.ReadFallbackOrder()
 		fbOrder = append(fbOrder, name)
 		config.WriteFallbackOrder(fbOrder)
 	}
 
-	return m, func() tea.Msg { return switchToListMsg{} }
+	m.saved = true
+	m.status = "Saved"
+	m.err = ""
+	return m, saveExitTick()
 }
 
 func (m editorModel) view(width, height int) string {
 	var b strings.Builder
 
-	title := "Add Configuration"
+	// Header
+	title := "Add Provider"
+	icon := "➕"
 	if m.editing != "" {
-		title = fmt.Sprintf("Edit Configuration: %s", m.editing)
+		title = fmt.Sprintf("Edit Provider: %s", m.editing)
+		icon = "✏️"
 	}
-	b.WriteString(titleStyle.Render("  " + title))
+	header := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(primaryColor).
+		Background(headerBgColor).
+		Padding(0, 2).
+		Render(icon + " " + title)
+	b.WriteString(header)
 	b.WriteString("\n\n")
+
+	// Form content
+	var content strings.Builder
+	content.WriteString(sectionTitleStyle.Render(" Provider Settings"))
+	content.WriteString("\n\n")
 
 	for i := range m.fields {
 		if m.editing != "" && editorField(i) == fieldName {
-			b.WriteString(dimStyle.Render(fmt.Sprintf("  Name:       %s", m.editing)))
-			b.WriteString("\n")
+			content.WriteString(dimStyle.Render(fmt.Sprintf("  Name:             %s", m.editing)))
+			content.WriteString("\n")
 			continue
 		}
-		b.WriteString(m.fields[i].View())
-		b.WriteString("\n")
+		content.WriteString(m.fields[i].View())
+		content.WriteString("\n")
 	}
 
-	b.WriteString("\n")
-	if m.err != "" {
-		b.WriteString(errorStyle.Render("  " + m.err))
+	formBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(borderColor).
+		Padding(0, 1).
+		Render(content.String())
+	b.WriteString(formBox)
+
+	b.WriteString("\n\n")
+	if m.saved {
+		b.WriteString(successStyle.Render("  ✓ " + m.status))
+	} else if m.err != "" {
+		errBox := lipgloss.NewStyle().
+			Foreground(errorColor).
+			Render("✗ " + m.err)
+		b.WriteString(errBox)
 		b.WriteString("\n")
+		b.WriteString(helpStyle.Render("  tab next • " + saveKeyHint() + " save • esc cancel"))
+	} else {
+		b.WriteString(helpStyle.Render("  tab next • " + saveKeyHint() + " save • esc cancel"))
 	}
-	b.WriteString(helpStyle.Render("  tab:next field  ctrl+s:save  esc:cancel"))
 
 	return b.String()
+}
+
+// standaloneEditorModel wraps editorModel for standalone use.
+type standaloneEditorModel struct {
+	editor      editorModel
+	cancelled   bool
+	createdName string
+}
+
+func newStandaloneEditorModel(configName string) standaloneEditorModel {
+	return standaloneEditorModel{
+		editor: newEditorModel(configName),
+	}
+}
+
+func (m standaloneEditorModel) Init() tea.Cmd {
+	return m.editor.init()
+}
+
+func (m standaloneEditorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if msg.String() == "ctrl+c" {
+			m.cancelled = true
+			return m, tea.Quit
+		}
+		if msg.String() == "esc" && !m.editor.saved {
+			m.cancelled = true
+			return m, tea.Quit
+		}
+	case switchToListMsg:
+		// Editor finished saving — extract the name and quit
+		m.createdName = strings.TrimSpace(m.editor.fields[fieldName].Value())
+		return m, tea.Quit
+	}
+
+	var cmd tea.Cmd
+	m.editor, cmd = m.editor.update(msg)
+	return m, cmd
+}
+
+func (m standaloneEditorModel) View() string {
+	return m.editor.view(0, 0)
+}
+
+// RunAddProvider runs a standalone provider editor TUI for creating a new provider.
+func RunAddProvider() (string, error) {
+	m := newStandaloneEditorModel("")
+	p := tea.NewProgram(m)
+	result, err := p.Run()
+	if err != nil {
+		return "", err
+	}
+	sm := result.(standaloneEditorModel)
+	if sm.cancelled {
+		return "", fmt.Errorf("cancelled")
+	}
+	return sm.createdName, nil
+}
+
+// RunEditProvider runs a standalone provider editor TUI for editing an existing provider.
+func RunEditProvider(name string) error {
+	m := newStandaloneEditorModel(name)
+	p := tea.NewProgram(m)
+	result, err := p.Run()
+	if err != nil {
+		return err
+	}
+	sm := result.(standaloneEditorModel)
+	if sm.cancelled {
+		return fmt.Errorf("cancelled")
+	}
+	return nil
 }

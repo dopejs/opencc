@@ -1,30 +1,85 @@
 package cmd
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/anthropics/opencc/internal/config"
+	"github.com/dopejs/opencc/internal/config"
 )
 
 func setTestHome(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
-	envDir := filepath.Join(dir, ".cc_envs")
-	os.MkdirAll(envDir, 0755)
+	config.ResetDefaultStore()
+	t.Cleanup(func() { config.ResetDefaultStore() })
 	return dir
 }
 
-func writeTestEnv(t *testing.T, name, content string) {
+// writeTestProvider writes a provider to the JSON config.
+func writeTestProvider(t *testing.T, name string, p *config.ProviderConfig) {
 	t.Helper()
-	home := os.Getenv("HOME")
-	path := filepath.Join(home, ".cc_envs", name+".env")
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+	if err := config.SetProvider(name, p); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// writeTestEnv is a convenience that creates a provider from old-style key=value content.
+func writeTestEnv(t *testing.T, name, content string) {
+	t.Helper()
+	kv := make(map[string]string)
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		kv[k] = v
+	}
+	p := &config.ProviderConfig{
+		BaseURL:        kv["ANTHROPIC_BASE_URL"],
+		AuthToken:      kv["ANTHROPIC_AUTH_TOKEN"],
+		Model:          kv["ANTHROPIC_MODEL"],
+		ReasoningModel: kv["ANTHROPIC_REASONING_MODEL"],
+		HaikuModel:     kv["ANTHROPIC_DEFAULT_HAIKU_MODEL"],
+		OpusModel:      kv["ANTHROPIC_DEFAULT_OPUS_MODEL"],
+		SonnetModel:    kv["ANTHROPIC_DEFAULT_SONNET_MODEL"],
+	}
+	writeTestProvider(t, name, p)
+}
+
+// writeTestConfig writes a full OpenCCConfig JSON file.
+func writeTestConfig(t *testing.T, cfg *config.OpenCCConfig) {
+	t.Helper()
+	home := os.Getenv("HOME")
+	dir := filepath.Join(home, ".opencc")
+	os.MkdirAll(dir, 0755)
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "opencc.json"), data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	config.ResetDefaultStore()
+}
+
+func writeProfileConf(t *testing.T, profile string, names []string) {
+	t.Helper()
+	if err := config.WriteProfileOrder(profile, names); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFallbackConf(t *testing.T, names []string) {
+	t.Helper()
+	writeProfileConf(t, "default", names)
 }
 
 func TestBuildProviders(t *testing.T) {
@@ -32,7 +87,7 @@ func TestBuildProviders(t *testing.T) {
 	writeTestEnv(t, "yunyi", "ANTHROPIC_BASE_URL=https://yunyi.example.com\nANTHROPIC_AUTH_TOKEN=tok1\nANTHROPIC_MODEL=opus\n")
 	writeTestEnv(t, "cctq", "ANTHROPIC_BASE_URL=https://cctq.example.com\nANTHROPIC_AUTH_TOKEN=tok2\n")
 
-	providers, firstModel, err := buildProviders([]string{"yunyi", "cctq"})
+	providers, err := buildProviders([]string{"yunyi", "cctq"})
 	if err != nil {
 		t.Fatalf("buildProviders() error: %v", err)
 	}
@@ -55,12 +110,8 @@ func TestBuildProviders(t *testing.T) {
 	}
 
 	// cctq has no model, should default
-	if providers[1].Model != "claude-sonnet-4-20250514" {
+	if providers[1].Model != "claude-sonnet-4-5" {
 		t.Errorf("providers[1].Model = %q, want default", providers[1].Model)
-	}
-
-	if firstModel != "opus" {
-		t.Errorf("firstModel = %q, want %q", firstModel, "opus")
 	}
 }
 
@@ -68,7 +119,7 @@ func TestBuildProvidersSkipsEmpty(t *testing.T) {
 	setTestHome(t)
 	writeTestEnv(t, "a", "ANTHROPIC_BASE_URL=https://a.com\nANTHROPIC_AUTH_TOKEN=tok\n")
 
-	providers, _, err := buildProviders([]string{"", "a", "  "})
+	providers, err := buildProviders([]string{"", "a", "  "})
 	if err != nil {
 		t.Fatalf("error: %v", err)
 	}
@@ -80,7 +131,7 @@ func TestBuildProvidersSkipsEmpty(t *testing.T) {
 func TestBuildProvidersMissingConfig(t *testing.T) {
 	setTestHome(t)
 
-	_, _, err := buildProviders([]string{"nonexistent"})
+	_, err := buildProviders([]string{"nonexistent"})
 	if err == nil {
 		t.Error("expected error for missing config")
 	}
@@ -90,7 +141,7 @@ func TestBuildProvidersMissingURL(t *testing.T) {
 	setTestHome(t)
 	writeTestEnv(t, "bad", "ANTHROPIC_AUTH_TOKEN=tok\n")
 
-	_, _, err := buildProviders([]string{"bad"})
+	_, err := buildProviders([]string{"bad"})
 	if err == nil {
 		t.Error("expected error for missing ANTHROPIC_BASE_URL")
 	}
@@ -100,7 +151,7 @@ func TestBuildProvidersMissingToken(t *testing.T) {
 	setTestHome(t)
 	writeTestEnv(t, "bad", "ANTHROPIC_BASE_URL=https://example.com\n")
 
-	_, _, err := buildProviders([]string{"bad"})
+	_, err := buildProviders([]string{"bad"})
 	if err == nil {
 		t.Error("expected error for missing ANTHROPIC_AUTH_TOKEN")
 	}
@@ -109,7 +160,7 @@ func TestBuildProvidersMissingToken(t *testing.T) {
 func TestBuildProvidersAllEmpty(t *testing.T) {
 	setTestHome(t)
 
-	_, _, err := buildProviders([]string{"", "  "})
+	_, err := buildProviders([]string{"", "  "})
 	if err == nil {
 		t.Error("expected error for no valid providers")
 	}
@@ -121,25 +172,9 @@ func TestVersionValue(t *testing.T) {
 	}
 }
 
-// PLACEHOLDER_MORE_TESTS
-
-func writeProfileConf(t *testing.T, profile, content string) {
-	t.Helper()
-	home := os.Getenv("HOME")
-	var path string
-	if profile == "" || profile == "default" {
-		path = filepath.Join(home, ".cc_envs", "fallback.conf")
-	} else {
-		path = filepath.Join(home, ".cc_envs", "fallback."+profile+".conf")
-	}
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestResolveWithProfileFlag(t *testing.T) {
 	setTestHome(t)
-	writeProfileConf(t, "work", "p1\np2\n")
+	writeProfileConf(t, "work", []string{"p1", "p2"})
 
 	names, profile, err := resolveProviderNames("work")
 	if err != nil {
@@ -167,7 +202,7 @@ func TestResolveWithProfileFlagNotFound(t *testing.T) {
 
 func TestResolveWithProfileFlagEmpty(t *testing.T) {
 	setTestHome(t)
-	writeProfileConf(t, "empty", "")
+	writeProfileConf(t, "empty", []string{})
 
 	_, _, err := resolveProviderNames("empty")
 	if err == nil {
@@ -180,7 +215,7 @@ func TestResolveWithProfileFlagEmpty(t *testing.T) {
 
 func TestResolveNoFlag(t *testing.T) {
 	setTestHome(t)
-	writeFallbackConf(t, "a\nb\n")
+	writeFallbackConf(t, []string{"a", "b"})
 
 	names, profile, err := resolveProviderNames("")
 	if err != nil {
@@ -197,7 +232,7 @@ func TestResolveNoFlag(t *testing.T) {
 func TestValidateWithProfile(t *testing.T) {
 	setTestHome(t)
 	writeTestEnv(t, "a", "ANTHROPIC_BASE_URL=https://a.com\nANTHROPIC_AUTH_TOKEN=tok\n")
-	writeProfileConf(t, "work", "a\nmissing\n")
+	writeProfileConf(t, "work", []string{"a", "missing"})
 	mockStdin(t, "y\n")
 
 	valid, err := validateProviderNames([]string{"a", "missing"}, "work")
@@ -217,18 +252,9 @@ func TestValidateWithProfile(t *testing.T) {
 	}
 }
 
-func writeFallbackConf(t *testing.T, content string) {
-	t.Helper()
-	home := os.Getenv("HOME")
-	path := filepath.Join(home, ".cc_envs", "fallback.conf")
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestResolveProviderNamesFromFallbackConf(t *testing.T) {
 	setTestHome(t)
-	writeFallbackConf(t, "p1\np2\n")
+	writeFallbackConf(t, []string{"p1", "p2"})
 
 	names, profile, err := resolveProviderNames("")
 	if err != nil {
@@ -244,22 +270,22 @@ func TestResolveProviderNamesFromFallbackConf(t *testing.T) {
 
 func TestResolveProviderNamesNoFallbackConf(t *testing.T) {
 	setTestHome(t)
-	// No fallback.conf and no providers → should error about no providers configured
+	// No default profile and no providers → should error about no providers configured
 
 	_, _, err := resolveProviderNames("")
 	if err == nil {
-		t.Error("expected error when fallback.conf missing and no providers")
+		t.Error("expected error when default profile missing and no providers")
 	}
 }
 
 func TestResolveProviderNamesEmptyFallbackConf(t *testing.T) {
 	setTestHome(t)
-	writeFallbackConf(t, "")
-	// Empty fallback.conf and no providers → should error about no providers configured
+	writeFallbackConf(t, []string{})
+	// Empty default profile and no providers → should error about no providers configured
 
 	_, _, err := resolveProviderNames("")
 	if err == nil {
-		t.Error("expected error when fallback.conf is empty and no providers")
+		t.Error("expected error when default profile is empty and no providers")
 	}
 }
 
@@ -267,7 +293,7 @@ func TestBuildProvidersMissingConfigErrors(t *testing.T) {
 	setTestHome(t)
 	writeTestEnv(t, "a", "ANTHROPIC_BASE_URL=https://a.com\nANTHROPIC_AUTH_TOKEN=tok\n")
 
-	_, _, err := buildProviders([]string{"a", "gone"})
+	_, err := buildProviders([]string{"a", "gone"})
 	if err == nil {
 		t.Error("expected error for missing config")
 	}
@@ -303,7 +329,7 @@ func TestValidateProviderNamesAllExist(t *testing.T) {
 func TestValidateProviderNamesSomeMissingConfirmYes(t *testing.T) {
 	setTestHome(t)
 	writeTestEnv(t, "a", "ANTHROPIC_BASE_URL=https://a.com\nANTHROPIC_AUTH_TOKEN=tok\n")
-	writeFallbackConf(t, "a\nmissing\n")
+	writeFallbackConf(t, []string{"a", "missing"})
 	mockStdin(t, "y\n")
 
 	valid, err := validateProviderNames([]string{"a", "missing"}, "default")
@@ -314,11 +340,11 @@ func TestValidateProviderNamesSomeMissingConfirmYes(t *testing.T) {
 		t.Errorf("expected [a], got %v", valid)
 	}
 
-	// Verify "missing" was removed from fallback.conf
+	// Verify "missing" was removed from default profile
 	names, _ := config.ReadFallbackOrder()
 	for _, n := range names {
 		if n == "missing" {
-			t.Error("missing should have been removed from fallback.conf")
+			t.Error("missing should have been removed from default profile")
 		}
 	}
 }

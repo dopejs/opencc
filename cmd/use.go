@@ -7,7 +7,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/anthropics/opencc/internal/envfile"
+	"github.com/dopejs/opencc/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +21,7 @@ var useCmd = &cobra.Command{
 }
 
 func runUse(cmd *cobra.Command, args []string) error {
-	available := envfile.ConfigNames()
+	available := config.ProviderNames()
 
 	if len(args) == 0 {
 		fmt.Println("Usage: opencc use <provider> [claude args...]")
@@ -36,8 +36,7 @@ func runUse(cmd *cobra.Command, args []string) error {
 	configName := args[0]
 	claudeArgs := args[1:]
 
-	cfg, err := envfile.LoadByName(configName)
-	if err != nil {
+	if err := config.ExportProviderToEnv(configName); err != nil {
 		fmt.Printf("Provider '%s' not found.\n", configName)
 		if len(available) > 0 {
 			fmt.Printf("Available providers: %s\n", strings.Join(available, ", "))
@@ -46,9 +45,6 @@ func runUse(cmd *cobra.Command, args []string) error {
 		}
 		return fmt.Errorf("configuration '%s' not found", configName)
 	}
-
-	// Export all env vars
-	cfg.ExportToEnv()
 
 	// Find claude binary
 	claudeBin, err := exec.LookPath("claude")
@@ -62,6 +58,6 @@ func runUse(cmd *cobra.Command, args []string) error {
 }
 
 func completeConfigNames(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-	names := envfile.ConfigNames()
+	names := config.ProviderNames()
 	return names, cobra.ShellCompDirectiveNoFileComp
 }

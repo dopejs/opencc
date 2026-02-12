@@ -2,7 +2,6 @@ package config
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -10,7 +9,8 @@ func setTestHome(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
-	os.MkdirAll(filepath.Join(dir, ".cc_envs"), 0755)
+	ResetDefaultStore()
+	t.Cleanup(func() { ResetDefaultStore() })
 	return dir
 }
 
@@ -37,32 +37,13 @@ func TestReadWriteFallbackOrder(t *testing.T) {
 	}
 }
 
-func TestReadFallbackOrderSkipsCommentsAndBlanks(t *testing.T) {
-	home := setTestHome(t)
-	confPath := filepath.Join(home, ".cc_envs", "fallback.conf")
-
-	content := "# comment\nyunyi\n\ncctq\n# another\nminimax\n"
-	os.WriteFile(confPath, []byte(content), 0644)
-
-	got, err := ReadFallbackOrder()
-	if err != nil {
-		t.Fatalf("ReadFallbackOrder() error: %v", err)
-	}
-	if len(got) != 3 {
-		t.Fatalf("expected 3 names, got %d: %v", len(got), got)
-	}
-	if got[0] != "yunyi" || got[1] != "cctq" || got[2] != "minimax" {
-		t.Errorf("got %v", got)
-	}
-}
-
 func TestReadFallbackOrderMissing(t *testing.T) {
 	setTestHome(t)
-	// Don't create fallback.conf
+	// Don't create default profile
 
 	_, err := ReadFallbackOrder()
 	if err == nil {
-		t.Error("expected error for missing fallback.conf")
+		t.Error("expected error for missing default profile")
 	}
 }
 
@@ -85,7 +66,8 @@ func TestWriteFallbackOrderEmpty(t *testing.T) {
 func TestWriteFallbackOrderCreatesDir(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
-	// Don't pre-create .cc_envs
+	ResetDefaultStore()
+	t.Cleanup(func() { ResetDefaultStore() })
 
 	if err := WriteFallbackOrder([]string{"a"}); err != nil {
 		t.Fatalf("WriteFallbackOrder() error: %v", err)
@@ -100,17 +82,10 @@ func TestWriteFallbackOrderCreatesDir(t *testing.T) {
 	}
 }
 
-func TestFallbackConfPath(t *testing.T) {
-	home := setTestHome(t)
-	got := FallbackConfPath()
-	want := filepath.Join(home, ".cc_envs", "fallback.conf")
-	if got != want {
-		t.Errorf("FallbackConfPath() = %q, want %q", got, want)
-	}
-}
-
 func TestWriteFallbackOrderErrorBadDir(t *testing.T) {
 	t.Setenv("HOME", "/dev/null/impossible")
+	ResetDefaultStore()
+	t.Cleanup(func() { ResetDefaultStore() })
 
 	err := WriteFallbackOrder([]string{"a"})
 	if err == nil {
@@ -132,9 +107,9 @@ func TestRemoveFromFallbackOrder(t *testing.T) {
 	}
 }
 
-func TestRemoveFromFallbackOrderMissingFile(t *testing.T) {
+func TestRemoveFromFallbackOrderMissingProfile(t *testing.T) {
 	setTestHome(t)
-	// No fallback.conf — should be a no-op
+	// No default profile — should be a no-op
 	if err := RemoveFromFallbackOrder("x"); err != nil {
 		t.Errorf("expected no error, got: %v", err)
 	}
@@ -211,33 +186,6 @@ func TestRemoveFromFallbackOrderDuplicates(t *testing.T) {
 }
 
 // --- Profile tests ---
-
-func TestProfileConfPathDefault(t *testing.T) {
-	home := setTestHome(t)
-	got := ProfileConfPath("default")
-	want := filepath.Join(home, ".cc_envs", "fallback.conf")
-	if got != want {
-		t.Errorf("ProfileConfPath(\"default\") = %q, want %q", got, want)
-	}
-}
-
-func TestProfileConfPathEmpty(t *testing.T) {
-	home := setTestHome(t)
-	got := ProfileConfPath("")
-	want := filepath.Join(home, ".cc_envs", "fallback.conf")
-	if got != want {
-		t.Errorf("ProfileConfPath(\"\") = %q, want %q", got, want)
-	}
-}
-
-func TestProfileConfPathNamed(t *testing.T) {
-	home := setTestHome(t)
-	got := ProfileConfPath("work")
-	want := filepath.Join(home, ".cc_envs", "fallback.work.conf")
-	if got != want {
-		t.Errorf("ProfileConfPath(\"work\") = %q, want %q", got, want)
-	}
-}
 
 func TestReadWriteProfileOrder(t *testing.T) {
 	setTestHome(t)
@@ -339,5 +287,67 @@ func TestRemoveFromProfileOrder(t *testing.T) {
 	got, _ := ReadProfileOrder("work")
 	if len(got) != 2 || got[0] != "a" || got[1] != "c" {
 		t.Errorf("got %v, want [a c]", got)
+	}
+}
+
+func TestProviderConfigExportToEnv(t *testing.T) {
+	p := &ProviderConfig{
+		BaseURL:        "https://test.com",
+		AuthToken:      "tok-test",
+		Model:          "m1",
+		ReasoningModel: "m2",
+		HaikuModel:     "m3",
+		OpusModel:      "m4",
+		SonnetModel:    "m5",
+	}
+
+	p.ExportToEnv()
+
+	tests := map[string]string{
+		"ANTHROPIC_BASE_URL":              "https://test.com",
+		"ANTHROPIC_AUTH_TOKEN":            "tok-test",
+		"ANTHROPIC_MODEL":                 "m1",
+		"ANTHROPIC_REASONING_MODEL":       "m2",
+		"ANTHROPIC_DEFAULT_HAIKU_MODEL":   "m3",
+		"ANTHROPIC_DEFAULT_OPUS_MODEL":    "m4",
+		"ANTHROPIC_DEFAULT_SONNET_MODEL":  "m5",
+	}
+
+	for k, want := range tests {
+		if got := os.Getenv(k); got != want {
+			t.Errorf("%s = %q, want %q", k, got, want)
+		}
+	}
+
+	// Cleanup
+	for k := range tests {
+		os.Unsetenv(k)
+	}
+}
+
+func TestConfigDirPath(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	got := ConfigDirPath()
+	if got != dir+"/.opencc" {
+		t.Errorf("ConfigDirPath() = %q", got)
+	}
+}
+
+func TestConfigFilePath(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	got := ConfigFilePath()
+	if got != dir+"/.opencc/opencc.json" {
+		t.Errorf("ConfigFilePath() = %q", got)
+	}
+}
+
+func TestLogPath(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	got := LogPath()
+	if got != dir+"/.opencc/proxy.log" {
+		t.Errorf("LogPath() = %q", got)
 	}
 }

@@ -6,12 +6,16 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/anthropics/opencc/internal/config"
-	"github.com/anthropics/opencc/internal/envfile"
+	"github.com/dopejs/opencc/internal/config"
 )
 
+type listItem struct {
+	Name   string
+	Config *config.ProviderConfig
+}
+
 type listModel struct {
-	configs  []*envfile.Config
+	configs  []listItem
 	fbOrder  map[string]int
 	cursor   int
 	status   string
@@ -23,19 +27,24 @@ func newListModel() listModel {
 }
 
 type configsLoadedMsg struct {
-	configs []*envfile.Config
+	configs []listItem
 	fbOrder map[string]int
 }
 
 func (m listModel) init() tea.Cmd {
 	return func() tea.Msg {
-		configs, _ := envfile.ListConfigs()
+		store := config.DefaultStore()
+		providerMap := store.ProviderMap()
+		var items []listItem
+		for name, p := range providerMap {
+			items = append(items, listItem{Name: name, Config: p})
+		}
 		fbNames, _ := config.ReadFallbackOrder()
 		fbOrder := make(map[string]int)
 		for i, n := range fbNames {
 			fbOrder[n] = i + 1
 		}
-		return configsLoadedMsg{configs: configs, fbOrder: fbOrder}
+		return configsLoadedMsg{configs: items, fbOrder: fbOrder}
 	}
 }
 
@@ -110,12 +119,8 @@ func (m listModel) handleDeleteConfirm(msg tea.KeyMsg) (listModel, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y":
 		if m.cursor < len(m.configs) {
-			cfg := m.configs[m.cursor]
-			cfg.Delete()
-			// Remove from all profiles
-			for _, profile := range config.ListProfiles() {
-				config.RemoveFromProfileOrder(profile, cfg.Name)
-			}
+			name := m.configs[m.cursor].Name
+			config.DeleteProviderByName(name)
 			m.deleting = false
 			return m, m.init()
 		}
@@ -135,7 +140,7 @@ func (m listModel) view(width, height int) string {
 		b.WriteString("  No configurations found.\n")
 		b.WriteString("  Press 'a' to add a new configuration.\n")
 	} else {
-		for i, cfg := range m.configs {
+		for i, item := range m.configs {
 			cursor := "  "
 			style := dimStyle
 			if i == m.cursor {
@@ -143,18 +148,18 @@ func (m listModel) view(width, height int) string {
 				style = selectedStyle
 			}
 
-			baseURL := cfg.Get("ANTHROPIC_BASE_URL")
-			model := cfg.Get("ANTHROPIC_MODEL")
+			baseURL := item.Config.BaseURL
+			model := item.Config.Model
 			if model == "" {
 				model = "-"
 			}
 
 			fbTag := ""
-			if idx, ok := m.fbOrder[cfg.Name]; ok {
+			if idx, ok := m.fbOrder[item.Name]; ok {
 				fbTag = fmt.Sprintf(" [fb:%d]", idx)
 			}
 
-			line := fmt.Sprintf("%s%-12s model=%-20s  %s%s", cursor, cfg.Name, model, baseURL, fbTag)
+			line := fmt.Sprintf("%s%-12s model=%-20s  %s%s", cursor, item.Name, model, baseURL, fbTag)
 			b.WriteString(style.Render(line))
 			b.WriteString("\n")
 		}

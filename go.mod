@@ -1,4 +1,4 @@
-module github.com/anthropics/opencc
+module github.com/dopejs/opencc
 
 go 1.25.6
 

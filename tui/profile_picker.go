@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/anthropics/opencc/internal/config"
+	"github.com/dopejs/opencc/internal/config"
 )
 
 // profilePickerModel is a standalone TUI for selecting a fallback profile.
@@ -53,7 +53,7 @@ func (m profilePickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m profilePickerModel) View() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("  Select fallback profile:"))
+	b.WriteString(titleStyle.Render("  Select provider group:"))
 	b.WriteString("\n\n")
 
 	if len(m.profiles) == 0 {

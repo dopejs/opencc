@@ -13,10 +13,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/anthropics/opencc/internal/config"
-	"github.com/anthropics/opencc/internal/envfile"
-	"github.com/anthropics/opencc/internal/proxy"
-	"github.com/anthropics/opencc/tui"
+	"github.com/dopejs/opencc/internal/config"
+	"github.com/dopejs/opencc/internal/proxy"
+	"github.com/dopejs/opencc/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -49,6 +48,24 @@ func init() {
 }
 
 func Execute() error {
+	// Pre-process: when -f/--fallback uses NoOptDefVal, cobra won't consume
+	// the next arg as its value. Merge "-f <name>" into "-f=<name>" so that
+	// cobra parses it correctly and doesn't treat <name> as a subcommand.
+	args := os.Args[1:]
+	for i := 0; i < len(args); i++ {
+		if args[i] == "-f" || args[i] == "--fallback" {
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				args[i] = args[i] + "=" + args[i+1]
+				args = append(args[:i+1], args[i+2:]...)
+			}
+			break
+		}
+		// Stop if we hit a non-flag arg (subcommand) before -f
+		if !strings.HasPrefix(args[i], "-") {
+			break
+		}
+	}
+	rootCmd.SetArgs(args)
 	return rootCmd.Execute()
 }
 
@@ -69,13 +86,13 @@ func runProxy(cmd *cobra.Command, args []string) error {
 }
 
 func startProxy(names []string, args []string) error {
-	providers, firstModel, err := buildProviders(names)
+	providers, err := buildProviders(names)
 	if err != nil {
 		return err
 	}
 
 	// Set up logger
-	logDir := envfile.EnvsPath()
+	logDir := config.ConfigDirPath()
 	os.MkdirAll(logDir, 0755)
 	logFile, err := os.OpenFile(filepath.Join(logDir, "proxy.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
@@ -103,12 +120,9 @@ func startProxy(names []string, args []string) error {
 
 	logger.Printf("Proxy listening on 127.0.0.1:%d", port)
 
-	// Set environment for claude
+	// Set environment for claude — proxy handles model mapping per-provider
 	os.Setenv("ANTHROPIC_BASE_URL", fmt.Sprintf("http://127.0.0.1:%d", port))
 	os.Setenv("ANTHROPIC_AUTH_TOKEN", "opencc-proxy")
-	if firstModel != "" {
-		os.Setenv("ANTHROPIC_MODEL", firstModel)
-	}
 
 	// Find claude binary
 	claudeBin, err := exec.LookPath("claude")
@@ -142,52 +156,66 @@ func startProxy(names []string, args []string) error {
 	return nil
 }
 
-func buildProviders(names []string) ([]*proxy.Provider, string, error) {
+func buildProviders(names []string) ([]*proxy.Provider, error) {
 	var providers []*proxy.Provider
-	var firstModel string
 
 	for _, name := range names {
 		name = strings.TrimSpace(name)
 		if name == "" {
 			continue
 		}
-		cfg, err := envfile.LoadByName(name)
-		if err != nil {
-			return nil, "", fmt.Errorf("configuration '%s' not found", name)
+		p := config.GetProvider(name)
+		if p == nil {
+			return nil, fmt.Errorf("configuration '%s' not found", name)
 		}
 
-		baseURL := cfg.Get("ANTHROPIC_BASE_URL")
-		token := cfg.Get("ANTHROPIC_AUTH_TOKEN")
-		model := cfg.Get("ANTHROPIC_MODEL")
-
-		if baseURL == "" || token == "" {
-			return nil, "", fmt.Errorf("%s.env missing ANTHROPIC_BASE_URL or ANTHROPIC_AUTH_TOKEN", name)
+		if p.BaseURL == "" || p.AuthToken == "" {
+			return nil, fmt.Errorf("%s missing base_url or auth_token", name)
 		}
+
+		model := p.Model
 		if model == "" {
-			model = "claude-sonnet-4-20250514"
+			model = "claude-sonnet-4-5"
 		}
-		if firstModel == "" {
-			firstModel = model
+		reasoningModel := p.ReasoningModel
+		if reasoningModel == "" {
+			reasoningModel = "claude-sonnet-4-5-thinking"
+		}
+		haikuModel := p.HaikuModel
+		if haikuModel == "" {
+			haikuModel = "claude-haiku-4-5"
+		}
+		opusModel := p.OpusModel
+		if opusModel == "" {
+			opusModel = "claude-opus-4-5"
+		}
+		sonnetModel := p.SonnetModel
+		if sonnetModel == "" {
+			sonnetModel = "claude-sonnet-4-5"
 		}
 
-		u, err := url.Parse(baseURL)
+		u, err := url.Parse(p.BaseURL)
 		if err != nil {
-			return nil, "", fmt.Errorf("invalid URL for provider %s: %w", name, err)
+			return nil, fmt.Errorf("invalid URL for provider %s: %w", name, err)
 		}
 
 		providers = append(providers, &proxy.Provider{
-			Name:    name,
-			BaseURL: u,
-			Token:   token,
-			Model:   model,
-			Healthy: true,
+			Name:           name,
+			BaseURL:        u,
+			Token:          p.AuthToken,
+			Model:          model,
+			ReasoningModel: reasoningModel,
+			HaikuModel:     haikuModel,
+			OpusModel:      opusModel,
+			SonnetModel:    sonnetModel,
+			Healthy:        true,
 		})
 	}
 
 	if len(providers) == 0 {
-		return nil, "", fmt.Errorf("no valid providers")
+		return nil, fmt.Errorf("no valid providers")
 	}
-	return providers, firstModel, nil
+	return providers, nil
 }
 
 // resolveProviderNames determines the provider list based on the -f flag value.
@@ -227,7 +255,7 @@ func resolveProviderNames(profileFlag string) ([]string, string, error) {
 		return fbNames, "default", nil
 	}
 
-	// fallback.conf missing or empty — interactive selection
+	// default profile missing or empty — interactive selection
 	names, err := interactiveSelectProviders()
 	if err != nil {
 		return nil, "", err
@@ -239,7 +267,7 @@ func resolveProviderNames(profileFlag string) ([]string, string, error) {
 // If no providers exist, launches the create-first editor.
 // Otherwise launches the checkbox picker.
 func interactiveSelectProviders() ([]string, error) {
-	available := envfile.ConfigNames()
+	available := config.ProviderNames()
 	if len(available) == 0 {
 		// No providers at all — launch TUI editor to create one
 		name, err := tui.RunCreateFirst()
@@ -252,7 +280,7 @@ func interactiveSelectProviders() ([]string, error) {
 		return []string{name}, nil
 	}
 
-	// Providers exist but no fallback.conf — launch picker
+	// Providers exist but no default profile — launch picker
 	selected, err := tui.RunPick()
 	if err != nil {
 		return nil, err
@@ -261,7 +289,7 @@ func interactiveSelectProviders() ([]string, error) {
 		return nil, fmt.Errorf("no providers selected")
 	}
 
-	// Write selection to fallback.conf
+	// Write selection to default profile
 	if err := config.WriteFallbackOrder(selected); err != nil {
 		return nil, fmt.Errorf("failed to save fallback order: %w", err)
 	}
@@ -270,8 +298,8 @@ func interactiveSelectProviders() ([]string, error) {
 	return selected, nil
 }
 
-// validateProviderNames checks that each provider .env exists.
-// Prompts user to confirm removal of missing providers from the profile's conf.
+// validateProviderNames checks that each provider exists in the config.
+// Prompts user to confirm removal of missing providers from the profile.
 func validateProviderNames(names []string, profile string) ([]string, error) {
 	var valid, missing []string
 	for _, name := range names {
@@ -279,8 +307,7 @@ func validateProviderNames(names []string, profile string) ([]string, error) {
 		if name == "" {
 			continue
 		}
-		path := filepath.Join(envfile.EnvsPath(), name+".env")
-		if _, err := os.Stat(path); err != nil {
+		if config.GetProvider(name) == nil {
 			missing = append(missing, name)
 		} else {
 			valid = append(valid, name)
