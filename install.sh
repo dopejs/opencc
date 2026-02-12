@@ -58,9 +58,9 @@ fetch() {
   _url="$1"
   _out="$2"
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "$_out" "$_url"
+    curl -fL --progress-bar -o "$_out" "$_url"
   elif command -v wget >/dev/null 2>&1; then
-    wget -qO "$_out" "$_url"
+    wget --show-progress -qO "$_out" "$_url" 2>&1
   fi
 }
 

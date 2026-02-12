@@ -76,10 +76,14 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 	}
 	defer os.Remove(tmpFile.Name())
 
-	if _, err := io.Copy(tmpFile, resp.Body); err != nil {
+	if _, err := io.Copy(tmpFile, &progressReader{
+		reader: resp.Body,
+		total:  resp.ContentLength,
+	}); err != nil {
 		tmpFile.Close()
 		return fmt.Errorf("download failed: %w", err)
 	}
+	fmt.Println()
 	tmpFile.Close()
 
 	if err := os.Chmod(tmpFile.Name(), 0755); err != nil {
@@ -119,6 +123,45 @@ func copyFile(src, dst string) error {
 
 	_, err = io.Copy(out, in)
 	return err
+}
+
+// progressReader wraps an io.Reader and prints a download progress bar.
+type progressReader struct {
+	reader  io.Reader
+	total   int64 // -1 if unknown
+	current int64
+}
+
+func (pr *progressReader) Read(p []byte) (int, error) {
+	n, err := pr.reader.Read(p)
+	pr.current += int64(n)
+
+	if pr.total > 0 {
+		pct := float64(pr.current) / float64(pr.total) * 100
+		barWidth := 30
+		filled := int(float64(barWidth) * float64(pr.current) / float64(pr.total))
+		bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
+		fmt.Fprintf(os.Stderr, "\r  %s %5.1f%% %s", bar, pct, formatBytes(pr.current))
+	} else {
+		fmt.Fprintf(os.Stderr, "\r  %s downloaded", formatBytes(pr.current))
+	}
+
+	return n, err
+}
+
+func formatBytes(b int64) string {
+	const (
+		kb = 1024
+		mb = 1024 * kb
+	)
+	switch {
+	case b >= mb:
+		return fmt.Sprintf("%.1f MB", float64(b)/float64(mb))
+	case b >= kb:
+		return fmt.Sprintf("%.1f KB", float64(b)/float64(kb))
+	default:
+		return fmt.Sprintf("%d B", b)
+	}
 }
 
 // resolveVersion finds the best matching version for the given prefix.
