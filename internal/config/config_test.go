@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"testing"
 )
@@ -349,5 +350,240 @@ func TestLogPath(t *testing.T) {
 	got := LogPath()
 	if got != dir+"/.opencc/proxy.log" {
 		t.Errorf("LogPath() = %q", got)
+	}
+}
+
+// --- ProfileConfig JSON tests ---
+
+func TestProfileConfigUnmarshalOldFormat(t *testing.T) {
+	// Old format: ["p1", "p2"]
+	data := []byte(`["p1", "p2"]`)
+	var pc ProfileConfig
+	if err := json.Unmarshal(data, &pc); err != nil {
+		t.Fatalf("UnmarshalJSON error: %v", err)
+	}
+	if len(pc.Providers) != 2 || pc.Providers[0] != "p1" || pc.Providers[1] != "p2" {
+		t.Errorf("got providers %v, want [p1 p2]", pc.Providers)
+	}
+	if pc.Routing != nil {
+		t.Errorf("routing should be nil for old format, got %v", pc.Routing)
+	}
+}
+
+func TestProfileConfigUnmarshalNewFormat(t *testing.T) {
+	data := []byte(`{
+		"providers": ["a", "b"],
+		"routing": {
+			"think": {"providers": ["b", "a"], "model": "claude-opus-4-5"},
+			"image": {"providers": ["a"]}
+		}
+	}`)
+	var pc ProfileConfig
+	if err := json.Unmarshal(data, &pc); err != nil {
+		t.Fatalf("UnmarshalJSON error: %v", err)
+	}
+	if len(pc.Providers) != 2 || pc.Providers[0] != "a" || pc.Providers[1] != "b" {
+		t.Errorf("got providers %v, want [a b]", pc.Providers)
+	}
+	if pc.Routing == nil {
+		t.Fatal("routing should not be nil")
+	}
+	if len(pc.Routing) != 2 {
+		t.Fatalf("expected 2 routing entries, got %d", len(pc.Routing))
+	}
+
+	thinkRoute := pc.Routing[ScenarioThink]
+	if thinkRoute == nil {
+		t.Fatal("think route should exist")
+	}
+	if len(thinkRoute.Providers) != 2 || thinkRoute.Providers[0] != "b" {
+		t.Errorf("think providers = %v", thinkRoute.Providers)
+	}
+	if thinkRoute.Model != "claude-opus-4-5" {
+		t.Errorf("think model = %q", thinkRoute.Model)
+	}
+
+	imageRoute := pc.Routing[ScenarioImage]
+	if imageRoute == nil {
+		t.Fatal("image route should exist")
+	}
+	if len(imageRoute.Providers) != 1 || imageRoute.Providers[0] != "a" {
+		t.Errorf("image providers = %v", imageRoute.Providers)
+	}
+	if imageRoute.Model != "" {
+		t.Errorf("image model should be empty, got %q", imageRoute.Model)
+	}
+}
+
+func TestProfileConfigUnmarshalNewFormatNoRouting(t *testing.T) {
+	data := []byte(`{"providers": ["x", "y"]}`)
+	var pc ProfileConfig
+	if err := json.Unmarshal(data, &pc); err != nil {
+		t.Fatalf("UnmarshalJSON error: %v", err)
+	}
+	if len(pc.Providers) != 2 {
+		t.Errorf("expected 2 providers, got %d", len(pc.Providers))
+	}
+	if pc.Routing != nil {
+		t.Errorf("routing should be nil, got %v", pc.Routing)
+	}
+}
+
+func TestProfileConfigRoundTrip(t *testing.T) {
+	original := ProfileConfig{
+		Providers: []string{"a", "b", "c"},
+		Routing: map[Scenario]*ScenarioRoute{
+			ScenarioThink: {
+				Providers: []string{"c", "a"},
+				Model:     "claude-opus-4-5",
+			},
+			ScenarioLongContext: {
+				Providers: []string{"b"},
+			},
+		},
+	}
+
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatalf("Marshal error: %v", err)
+	}
+
+	var restored ProfileConfig
+	if err := json.Unmarshal(data, &restored); err != nil {
+		t.Fatalf("Unmarshal error: %v", err)
+	}
+
+	if len(restored.Providers) != 3 {
+		t.Errorf("providers count: got %d, want 3", len(restored.Providers))
+	}
+	for i, want := range original.Providers {
+		if restored.Providers[i] != want {
+			t.Errorf("providers[%d] = %q, want %q", i, restored.Providers[i], want)
+		}
+	}
+
+	if len(restored.Routing) != 2 {
+		t.Fatalf("routing count: got %d, want 2", len(restored.Routing))
+	}
+
+	thinkRoute := restored.Routing[ScenarioThink]
+	if thinkRoute == nil || thinkRoute.Model != "claude-opus-4-5" {
+		t.Errorf("think route not properly round-tripped")
+	}
+	if len(thinkRoute.Providers) != 2 || thinkRoute.Providers[0] != "c" {
+		t.Errorf("think providers = %v", thinkRoute.Providers)
+	}
+
+	lcRoute := restored.Routing[ScenarioLongContext]
+	if lcRoute == nil || len(lcRoute.Providers) != 1 || lcRoute.Providers[0] != "b" {
+		t.Errorf("longContext route not properly round-tripped")
+	}
+}
+
+func TestProfileConfigRoundTripOldFormat(t *testing.T) {
+	// Start with old format, marshal, unmarshal — should produce equivalent result
+	oldData := []byte(`["x", "y"]`)
+	var pc ProfileConfig
+	if err := json.Unmarshal(oldData, &pc); err != nil {
+		t.Fatalf("Unmarshal old format error: %v", err)
+	}
+
+	newData, err := json.Marshal(pc)
+	if err != nil {
+		t.Fatalf("Marshal error: %v", err)
+	}
+
+	var restored ProfileConfig
+	if err := json.Unmarshal(newData, &restored); err != nil {
+		t.Fatalf("Unmarshal new format error: %v", err)
+	}
+
+	if len(restored.Providers) != 2 || restored.Providers[0] != "x" || restored.Providers[1] != "y" {
+		t.Errorf("got providers %v, want [x y]", restored.Providers)
+	}
+	if restored.Routing != nil {
+		t.Errorf("routing should be nil after round-trip from old format")
+	}
+}
+
+func TestFullConfigRoundTrip(t *testing.T) {
+	setTestHome(t)
+
+	// Write config with routing
+	pc := &ProfileConfig{
+		Providers: []string{"p1", "p2"},
+		Routing: map[Scenario]*ScenarioRoute{
+			ScenarioThink: {Providers: []string{"p2"}, Model: "model-x"},
+		},
+	}
+	if err := SetProfileConfig("myprofile", pc); err != nil {
+		t.Fatalf("SetProfileConfig error: %v", err)
+	}
+
+	// Read it back
+	got := GetProfileConfig("myprofile")
+	if got == nil {
+		t.Fatal("GetProfileConfig returned nil")
+	}
+	if len(got.Providers) != 2 {
+		t.Errorf("providers count = %d", len(got.Providers))
+	}
+	if got.Routing == nil || got.Routing[ScenarioThink] == nil {
+		t.Fatal("routing not preserved")
+	}
+	if got.Routing[ScenarioThink].Model != "model-x" {
+		t.Errorf("model = %q", got.Routing[ScenarioThink].Model)
+	}
+}
+
+func TestDeleteProviderCascadeRouting(t *testing.T) {
+	setTestHome(t)
+
+	// Setup: provider "a" and "b", profile with routing referencing both
+	store := DefaultStore()
+	store.SetProvider("a", &ProviderConfig{BaseURL: "https://a.com", AuthToken: "t"})
+	store.SetProvider("b", &ProviderConfig{BaseURL: "https://b.com", AuthToken: "t"})
+
+	pc := &ProfileConfig{
+		Providers: []string{"a", "b"},
+		Routing: map[Scenario]*ScenarioRoute{
+			ScenarioThink: {Providers: []string{"a", "b"}, Model: "m1"},
+			ScenarioImage: {Providers: []string{"a"}},
+		},
+	}
+	SetProfileConfig("default", pc)
+
+	// Delete provider "a"
+	DeleteProviderByName("a")
+
+	// Check routing was updated
+	got := GetProfileConfig("default")
+	if got == nil {
+		t.Fatal("profile should still exist")
+	}
+
+	// "a" should be removed from providers
+	for _, p := range got.Providers {
+		if p == "a" {
+			t.Error("provider 'a' should have been removed from providers")
+		}
+	}
+
+	// Check routing
+	if got.Routing != nil {
+		if think := got.Routing[ScenarioThink]; think != nil {
+			for _, p := range think.Providers {
+				if p == "a" {
+					t.Error("provider 'a' should have been removed from think route")
+				}
+			}
+			if len(think.Providers) != 1 || think.Providers[0] != "b" {
+				t.Errorf("think providers = %v, want [b]", think.Providers)
+			}
+		}
+		// image route had only "a" — should be removed entirely
+		if image := got.Routing[ScenarioImage]; image != nil {
+			t.Error("image route should have been removed (no providers left)")
+		}
 	}
 }

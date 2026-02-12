@@ -494,3 +494,182 @@ func TestMaskToken(t *testing.T) {
 		}
 	}
 }
+
+// --- Profile Routing ---
+
+func TestCreateProfileWithRouting(t *testing.T) {
+	s := setupTestServer(t)
+
+	body := createProfileRequest{
+		Name:      "routed",
+		Providers: []string{"test-provider", "backup"},
+		Routing: map[config.Scenario]*scenarioRouteResponse{
+			config.ScenarioThink: {
+				Providers: []string{"backup", "test-provider"},
+				Model:     "claude-opus-4-5",
+			},
+			config.ScenarioImage: {
+				Providers: []string{"test-provider"},
+			},
+		},
+	}
+	w := doRequest(s, "POST", "/api/v1/profiles", body)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Verify routing is returned
+	var resp profileResponse
+	decodeJSON(t, w, &resp)
+	if resp.Routing == nil {
+		t.Fatal("routing should not be nil in response")
+	}
+	if len(resp.Routing) != 2 {
+		t.Fatalf("expected 2 routes, got %d", len(resp.Routing))
+	}
+
+	thinkRoute := resp.Routing[config.ScenarioThink]
+	if thinkRoute == nil {
+		t.Fatal("think route should exist")
+	}
+	if thinkRoute.Model != "claude-opus-4-5" {
+		t.Errorf("think model = %q", thinkRoute.Model)
+	}
+	if len(thinkRoute.Providers) != 2 || thinkRoute.Providers[0] != "backup" {
+		t.Errorf("think providers = %v", thinkRoute.Providers)
+	}
+
+	// Verify persisted via GET
+	w2 := doRequest(s, "GET", "/api/v1/profiles/routed", nil)
+	if w2.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w2.Code)
+	}
+	var got profileResponse
+	decodeJSON(t, w2, &got)
+	if got.Routing == nil || len(got.Routing) != 2 {
+		t.Errorf("routing not persisted: %v", got.Routing)
+	}
+}
+
+func TestUpdateProfileWithRouting(t *testing.T) {
+	s := setupTestServer(t)
+
+	// Update work profile to add routing
+	body := updateProfileRequest{
+		Providers: []string{"test-provider"},
+		Routing: map[config.Scenario]*scenarioRouteResponse{
+			config.ScenarioLongContext: {
+				Providers: []string{"backup"},
+				Model:     "claude-haiku-4-5",
+			},
+		},
+	}
+	w := doRequest(s, "PUT", "/api/v1/profiles/work", body)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp profileResponse
+	decodeJSON(t, w, &resp)
+	if resp.Routing == nil {
+		t.Fatal("routing should not be nil")
+	}
+	lcRoute := resp.Routing[config.ScenarioLongContext]
+	if lcRoute == nil {
+		t.Fatal("longContext route should exist")
+	}
+	if lcRoute.Model != "claude-haiku-4-5" {
+		t.Errorf("model = %q", lcRoute.Model)
+	}
+}
+
+func TestUpdateProfileClearRouting(t *testing.T) {
+	s := setupTestServer(t)
+
+	// First add routing
+	body1 := updateProfileRequest{
+		Providers: []string{"test-provider"},
+		Routing: map[config.Scenario]*scenarioRouteResponse{
+			config.ScenarioThink: {Providers: []string{"backup"}},
+		},
+	}
+	doRequest(s, "PUT", "/api/v1/profiles/work", body1)
+
+	// Then update without routing — should clear it
+	body2 := updateProfileRequest{
+		Providers: []string{"test-provider", "backup"},
+	}
+	w := doRequest(s, "PUT", "/api/v1/profiles/work", body2)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var resp profileResponse
+	decodeJSON(t, w, &resp)
+	if resp.Routing != nil {
+		t.Errorf("routing should be nil after clearing, got %v", resp.Routing)
+	}
+}
+
+func TestListProfilesWithRouting(t *testing.T) {
+	s := setupTestServer(t)
+
+	// Add routing to default
+	body := updateProfileRequest{
+		Providers: []string{"test-provider", "backup"},
+		Routing: map[config.Scenario]*scenarioRouteResponse{
+			config.ScenarioThink: {Providers: []string{"backup"}, Model: "opus"},
+		},
+	}
+	doRequest(s, "PUT", "/api/v1/profiles/default", body)
+
+	// List profiles
+	w := doRequest(s, "GET", "/api/v1/profiles", nil)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var profiles []profileResponse
+	decodeJSON(t, w, &profiles)
+
+	found := false
+	for _, p := range profiles {
+		if p.Name == "default" {
+			found = true
+			if p.Routing == nil || len(p.Routing) != 1 {
+				t.Errorf("default profile routing not returned in list: %v", p.Routing)
+			}
+		}
+	}
+	if !found {
+		t.Error("default profile not found in list")
+	}
+}
+
+func TestCreateProfileWithEmptyRouting(t *testing.T) {
+	s := setupTestServer(t)
+
+	// Empty routing providers should be ignored
+	body := createProfileRequest{
+		Name:      "empty-routes",
+		Providers: []string{"test-provider"},
+		Routing: map[config.Scenario]*scenarioRouteResponse{
+			config.ScenarioThink: {Providers: []string{}},
+		},
+	}
+	w := doRequest(s, "POST", "/api/v1/profiles", body)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp profileResponse
+	decodeJSON(t, w, &resp)
+	// Empty providers route should be filtered out
+	if resp.Routing != nil {
+		t.Errorf("routing with empty providers should be nil, got %v", resp.Routing)
+	}
+}
