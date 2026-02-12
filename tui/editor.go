@@ -25,15 +25,21 @@ const (
 )
 
 type editorModel struct {
-	fields   [fieldCount]textinput.Model
-	focus    editorField
-	editing  string // config name being edited, empty = new
-	err      string
-	saved    bool   // true = save succeeded, waiting to exit
-	status   string // "Saved" success message
+	fields      [fieldCount]textinput.Model
+	focus       editorField
+	editing     string // config name being edited, empty = new
+	initMode    bool   // true = auto-add to default profile on save (first provider)
+	err         string
+	saved       bool   // true = save succeeded, waiting to exit
+	status      string // "Saved" success message
+	createdName string // name of provider after save (for callers)
 }
 
 func newEditorModel(configName string) editorModel {
+	return newEditorModelWithPreset(configName, "")
+}
+
+func newEditorModelWithPreset(configName string, presetName string) editorModel {
 	var fields [fieldCount]textinput.Model
 
 	for i := range fields {
@@ -49,7 +55,7 @@ func newEditorModel(configName string) editorModel {
 	fields[fieldAuthToken].Prompt = "  Auth Token:       "
 	fields[fieldModel].Placeholder = "claude-sonnet-4-5"
 	fields[fieldModel].Prompt = "  Model:            "
-	fields[fieldReasoningModel].Placeholder = "claude-sonnet-4-5-thinking"
+	fields[fieldReasoningModel].Placeholder = "claude-sonnet-4-5"
 	fields[fieldReasoningModel].Prompt = "  Reasoning Model:  "
 	fields[fieldHaikuModel].Placeholder = "claude-haiku-4-5"
 	fields[fieldHaikuModel].Prompt = "  Haiku Model:      "
@@ -77,6 +83,10 @@ func newEditorModel(configName string) editorModel {
 			m.fields[fieldSonnetModel].SetValue(p.SonnetModel)
 		}
 		// Disable name field when editing
+		m.focus = fieldBaseURL
+	} else if presetName != "" {
+		// New provider with pre-filled name — skip to next field
+		m.fields[fieldName].SetValue(presetName)
 		m.focus = fieldBaseURL
 	} else {
 		m.focus = fieldName
@@ -151,6 +161,10 @@ func (m editorModel) save() (editorModel, tea.Cmd) {
 		m.err = "name is required"
 		return m, nil
 	}
+	if m.editing == "" && config.GetProvider(name) != nil {
+		m.err = fmt.Sprintf("provider %q already exists", name)
+		return m, nil
+	}
 	if baseURL == "" {
 		m.err = "base URL is required"
 		return m, nil
@@ -166,7 +180,7 @@ func (m editorModel) save() (editorModel, tea.Cmd) {
 		def   string
 	}{
 		{fieldModel, "claude-sonnet-4-5"},
-		{fieldReasoningModel, "claude-sonnet-4-5-thinking"},
+		{fieldReasoningModel, "claude-sonnet-4-5"},
 		{fieldHaikuModel, "claude-haiku-4-5"},
 		{fieldOpusModel, "claude-opus-4-5"},
 		{fieldSonnetModel, "claude-sonnet-4-5"},
@@ -196,8 +210,8 @@ func (m editorModel) save() (editorModel, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.editing == "" {
-		// New provider — append to default profile
+	if m.editing == "" && m.initMode {
+		// First provider — auto-add to default profile
 		fbOrder, _ := config.ReadFallbackOrder()
 		fbOrder = append(fbOrder, name)
 		config.WriteFallbackOrder(fbOrder)
@@ -206,6 +220,7 @@ func (m editorModel) save() (editorModel, tea.Cmd) {
 	m.saved = true
 	m.status = "Saved"
 	m.err = ""
+	m.createdName = name
 	return m, saveExitTick()
 }
 
@@ -311,8 +326,17 @@ func (m standaloneEditorModel) View() string {
 }
 
 // RunAddProvider runs a standalone provider editor TUI for creating a new provider.
-func RunAddProvider() (string, error) {
-	m := newStandaloneEditorModel("")
+// If presetName is non-empty, it pre-fills the name field. If that name already exists,
+// an error is returned immediately.
+// After saving, if profiles exist, it runs a profile multi-select so the user can
+// choose which profiles to add the new provider to.
+func RunAddProvider(presetName string) (string, error) {
+	if presetName != "" && config.GetProvider(presetName) != nil {
+		return "", fmt.Errorf("provider %q already exists", presetName)
+	}
+	m := standaloneEditorModel{
+		editor: newEditorModelWithPreset("", presetName),
+	}
 	p := tea.NewProgram(m)
 	result, err := p.Run()
 	if err != nil {
@@ -322,7 +346,24 @@ func RunAddProvider() (string, error) {
 	if sm.cancelled {
 		return "", fmt.Errorf("cancelled")
 	}
-	return sm.createdName, nil
+	providerName := sm.createdName
+
+	// If profiles exist, let the user pick which ones to add this provider to
+	profiles := config.ListProfiles()
+	if len(profiles) > 0 {
+		selected, err := RunProfileMultiSelect()
+		if err != nil {
+			// cancelled or error — provider is already saved, just skip profile assignment
+			return providerName, nil
+		}
+		for _, profile := range selected {
+			order, _ := config.ReadProfileOrder(profile)
+			order = append(order, providerName)
+			config.WriteProfileOrder(profile, order)
+		}
+	}
+
+	return providerName, nil
 }
 
 // RunEditProvider runs a standalone provider editor TUI for editing an existing provider.

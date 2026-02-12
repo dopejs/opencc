@@ -17,11 +17,14 @@ type groupCreateModel struct {
 	err       string
 }
 
-func newGroupCreateModel() groupCreateModel {
+func newGroupCreateModel(presetName string) groupCreateModel {
 	ti := textinput.New()
 	ti.Placeholder = "group name"
 	ti.Prompt = "  Name: "
 	ti.CharLimit = 64
+	if presetName != "" {
+		ti.SetValue(presetName)
+	}
 	ti.Focus()
 	return groupCreateModel{nameInput: ti}
 }
@@ -84,9 +87,18 @@ func (m groupCreateModel) View() string {
 }
 
 // RunGroupCreate runs a standalone group creation TUI.
+// If presetName is non-empty, it pre-fills the name field.
 // Returns the created group name.
-func RunGroupCreate() (string, error) {
-	m := newGroupCreateModel()
+func RunGroupCreate(presetName string) (string, error) {
+	if presetName != "" {
+		// Check for duplicate immediately
+		for _, p := range config.ListProfiles() {
+			if p == presetName {
+				return "", fmt.Errorf("group %q already exists", presetName)
+			}
+		}
+	}
+	m := newGroupCreateModel(presetName)
 	p := tea.NewProgram(m)
 	result, err := p.Run()
 	if err != nil {

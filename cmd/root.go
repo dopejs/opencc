@@ -45,6 +45,7 @@ func init() {
 	rootCmd.AddCommand(completionCmd)
 	rootCmd.AddCommand(upgradeCmd)
 	rootCmd.AddCommand(pickCmd)
+	rootCmd.AddCommand(webCmd)
 }
 
 func Execute() error {

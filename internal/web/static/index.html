@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenCC</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <svg class="brand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        <div>
+          <span class="brand-name">OpenCC</span>
+          <span class="brand-version" id="version"></span>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-tab="providers">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/></svg>
+          <span>Providers</span>
+        </button>
+        <button class="nav-item" data-tab="profiles">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          <span>Profiles</span>
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <button class="nav-item nav-reload" id="btn-reload">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+          <span>Reload Config</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main">
+      <!-- Providers Tab -->
+      <section id="tab-providers" class="tab-content active">
+        <div class="page-header">
+          <div>
+            <h1>Providers</h1>
+            <p class="page-desc">Manage your API provider configurations</p>
+          </div>
+          <button class="btn btn-primary" id="btn-add-provider">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Provider
+          </button>
+        </div>
+        <div id="providers-list"></div>
+      </section>
+
+      <!-- Profiles Tab -->
+      <section id="tab-profiles" class="tab-content">
+        <div class="page-header">
+          <div>
+            <h1>Profiles</h1>
+            <p class="page-desc">Manage provider groups and fallback order</p>
+          </div>
+          <button class="btn btn-primary" id="btn-add-profile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Profile
+          </button>
+        </div>
+        <div id="profiles-list"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Provider Modal -->
+  <div id="provider-modal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="provider-modal-title">Add Provider</h2>
+        <button class="btn-close modal-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form id="provider-form" class="modal-body">
+        <div class="form-group">
+          <label for="pf-name">Name</label>
+          <input type="text" id="pf-name" required autocomplete="off" placeholder="my-provider">
+        </div>
+        <div class="form-group">
+          <label for="pf-base-url">Base URL</label>
+          <input type="url" id="pf-base-url" required placeholder="https://api.example.com">
+        </div>
+        <div class="form-group">
+          <label for="pf-token">Auth Token</label>
+          <input type="text" id="pf-token" autocomplete="off" placeholder="sk-...">
+        </div>
+        <div class="form-divider"><span>Model Overrides</span></div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="pf-model">Default Model</label>
+            <div class="ac-wrap">
+              <input type="text" id="pf-model" placeholder="claude-sonnet-4-5" autocomplete="off" data-ac="models-default">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="pf-reasoning">Reasoning Model</label>
+            <div class="ac-wrap">
+              <input type="text" id="pf-reasoning" placeholder="claude-sonnet-4-5" autocomplete="off" data-ac="models-default">
+            </div>
+          </div>
+        </div>
+        <div class="form-row form-row-3">
+          <div class="form-group">
+            <label for="pf-haiku">Haiku</label>
+            <div class="ac-wrap">
+              <input type="text" id="pf-haiku" placeholder="claude-haiku-4-5" autocomplete="off" data-ac="models-haiku">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="pf-opus">Opus</label>
+            <div class="ac-wrap">
+              <input type="text" id="pf-opus" placeholder="claude-opus-4-5" autocomplete="off" data-ac="models-opus">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="pf-sonnet">Sonnet</label>
+            <div class="ac-wrap">
+              <input type="text" id="pf-sonnet" placeholder="claude-sonnet-4-5" autocomplete="off" data-ac="models-sonnet">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost modal-cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Profile Modal -->
+  <div id="profile-modal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="profile-modal-title">Add Profile</h2>
+        <button class="btn-close modal-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form id="profile-form" class="modal-body">
+        <div class="form-group">
+          <label for="gf-name">Name</label>
+          <input type="text" id="gf-name" required autocomplete="off" placeholder="my-profile">
+        </div>
+        <div class="form-group">
+          <label>Providers <span class="label-hint">(drag handle or arrows to reorder)</span></label>
+          <div id="gf-providers" class="provider-selector"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost modal-cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Confirm Modal -->
+  <div id="confirm-modal" class="modal-overlay">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2>Confirm Delete</h2>
+        <button class="btn-close modal-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="confirm-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <p id="confirm-message"></p>
+        <div class="modal-footer">
+          <button class="btn btn-ghost modal-cancel" id="confirm-cancel">Cancel</button>
+          <button class="btn btn-danger" id="confirm-ok">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add to Profiles Modal -->
+  <div id="add-to-profiles-modal" class="modal-overlay">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2>Add to Profiles</h2>
+        <button class="btn-close modal-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="add-profiles-desc">Select profiles to add this provider to:</p>
+        <div id="atp-profiles" class="profile-checklist"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" id="atp-skip">Skip</button>
+          <button type="button" class="btn btn-primary" id="atp-confirm">Add</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

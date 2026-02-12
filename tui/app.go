@@ -127,8 +127,10 @@ type createFirstModel struct {
 }
 
 func newCreateFirstModel() createFirstModel {
+	editor := newEditorModel("")
+	editor.initMode = true
 	return createFirstModel{
-		editor: newEditorModel(""),
+		editor: editor,
 	}
 }
 
@@ -334,8 +336,9 @@ func RunSelectGroup(excludeDefault bool) (string, error) {
 }
 
 // RunAddGroup runs the group creation flow: name input then group editor.
-func RunAddGroup() error {
-	name, err := RunGroupCreate()
+// If presetName is non-empty, it pre-fills the name field.
+func RunAddGroup(presetName string) error {
+	name, err := RunGroupCreate(presetName)
 	if err != nil {
 		return err
 	}

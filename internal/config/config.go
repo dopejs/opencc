@@ -6,6 +6,10 @@ const (
 	ConfigDir  = ".opencc"
 	ConfigFile = "opencc.json"
 	LegacyDir  = ".cc_envs"
+
+	WebPort    = 19840
+	WebPidFile = "web.pid"
+	WebLogFile = "web.log"
 )
 
 // ProviderConfig holds connection and model settings for a single API provider.

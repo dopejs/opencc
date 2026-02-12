@@ -13,7 +13,7 @@ import (
 
 var configCmd = &cobra.Command{
 	Use:   "config",
-	Short: "Manage providers and groups",
+	Short: "Manage providers and profiles",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := tui.RunConfigMain()
 		if err != nil && err.Error() == "cancelled" {
@@ -26,8 +26,8 @@ var configCmd = &cobra.Command{
 // --- add subcommands ---
 
 var configAddCmd = &cobra.Command{
-	Use:   "add [provider|group]",
-	Short: "Add a provider or group",
+	Use:   "add [provider|profile]",
+	Short: "Add a provider or profile",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		typ, err := tui.RunSelectType()
 		if err != nil {
@@ -38,13 +38,13 @@ var configAddCmd = &cobra.Command{
 		}
 		switch typ {
 		case "provider":
-			_, err := tui.RunAddProvider()
+			_, err := tui.RunAddProvider("")
 			if err != nil && err.Error() == "cancelled" {
 				return nil
 			}
 			return err
 		case "group":
-			err := tui.RunAddGroup()
+			err := tui.RunAddGroup("")
 			if err != nil && err.Error() == "cancelled" {
 				return nil
 			}
@@ -55,10 +55,14 @@ var configAddCmd = &cobra.Command{
 }
 
 var configAddProviderCmd = &cobra.Command{
-	Use:   "provider",
+	Use:   "provider [name]",
 	Short: "Add a new provider",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		_, err := tui.RunAddProvider()
+		var name string
+		if len(args) > 0 {
+			name = args[0]
+		}
+		_, err := tui.RunAddProvider(name)
 		if err != nil && err.Error() == "cancelled" {
 			return nil
 		}
@@ -67,10 +71,14 @@ var configAddProviderCmd = &cobra.Command{
 }
 
 var configAddGroupCmd = &cobra.Command{
-	Use:   "group",
-	Short: "Add a new group",
+	Use:   "profile [name]",
+	Short: "Add a new profile",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		err := tui.RunAddGroup()
+		var name string
+		if len(args) > 0 {
+			name = args[0]
+		}
+		err := tui.RunAddGroup(name)
 		if err != nil && err.Error() == "cancelled" {
 			return nil
 		}
@@ -81,8 +89,8 @@ var configAddGroupCmd = &cobra.Command{
 // --- delete subcommands ---
 
 var configDeleteCmd = &cobra.Command{
-	Use:   "delete [provider|group] [name]",
-	Short: "Delete a provider or group",
+	Use:   "delete [provider|profile] [name]",
+	Short: "Delete a provider or profile",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		typ, err := tui.RunSelectType()
 		if err != nil {
@@ -114,8 +122,8 @@ var configDeleteProviderCmd = &cobra.Command{
 }
 
 var configDeleteGroupCmd = &cobra.Command{
-	Use:   "group [name]",
-	Short: "Delete a group",
+	Use:   "profile [name]",
+	Short: "Delete a profile",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var name string
 		if len(args) > 0 {
@@ -177,7 +185,7 @@ func deleteGroup(name string) error {
 	}
 
 	if name == "default" {
-		fmt.Println("Cannot delete the default group.")
+		fmt.Println("Cannot delete the default profile.")
 		return nil
 	}
 
@@ -190,7 +198,7 @@ func deleteGroup(name string) error {
 		}
 	}
 	if !found {
-		fmt.Printf("Group %q not found.\n", name)
+		fmt.Printf("Profile %q not found.\n", name)
 		return nil
 	}
 
@@ -202,7 +210,7 @@ func deleteGroup(name string) error {
 	if err := config.DeleteProfile(name); err != nil {
 		return err
 	}
-	fmt.Printf("Deleted group %q.\n", name)
+	fmt.Printf("Deleted profile %q.\n", name)
 	return nil
 }
 
@@ -217,8 +225,8 @@ func confirmDelete(name string) bool {
 // --- edit subcommands ---
 
 var configEditCmd = &cobra.Command{
-	Use:   "edit [provider|group] [name]",
-	Short: "Edit a provider or group",
+	Use:   "edit [provider|profile] [name]",
+	Short: "Edit a provider or profile",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		typ, err := tui.RunSelectType()
 		if err != nil {
@@ -250,8 +258,8 @@ var configEditProviderCmd = &cobra.Command{
 }
 
 var configEditGroupCmd = &cobra.Command{
-	Use:   "group [name]",
-	Short: "Edit a group",
+	Use:   "profile [name]",
+	Short: "Edit a profile",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		var name string
 		if len(args) > 0 {
@@ -306,7 +314,7 @@ func editGroup(name string) error {
 		}
 	}
 	if !found {
-		fmt.Printf("Group %q not found.\n", name)
+		fmt.Printf("Profile %q not found.\n", name)
 		return nil
 	}
 
