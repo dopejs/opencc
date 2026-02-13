@@ -57,10 +57,69 @@ const (
 	ScenarioDefault    Scenario = "default"
 )
 
-// ScenarioRoute defines providers and optional model override for a scenario.
+// ProviderRoute defines a provider and its optional model override in a scenario.
+type ProviderRoute struct {
+	Name  string `json:"name"`
+	Model string `json:"model,omitempty"`
+}
+
+// ScenarioRoute defines providers and their model overrides for a scenario.
 type ScenarioRoute struct {
-	Providers []string `json:"providers"`
-	Model     string   `json:"model,omitempty"`
+	Providers []*ProviderRoute `json:"providers"`
+}
+
+// UnmarshalJSON supports both old format (providers: ["p1"], model: "m") and new format (providers: [{name, model}]).
+func (sr *ScenarioRoute) UnmarshalJSON(data []byte) error {
+	// Try new format first
+	type scenarioRouteAlias struct {
+		Providers []*ProviderRoute `json:"providers"`
+	}
+	var alias scenarioRouteAlias
+	if err := json.Unmarshal(data, &alias); err == nil && len(alias.Providers) > 0 {
+		// Check if first provider is actually a ProviderRoute (has Name field)
+		if alias.Providers[0].Name != "" {
+			sr.Providers = alias.Providers
+			return nil
+		}
+	}
+
+	// Try old format: {providers: ["p1", "p2"], model: "m"}
+	var oldFormat struct {
+		Providers []string `json:"providers"`
+		Model     string   `json:"model,omitempty"`
+	}
+	if err := json.Unmarshal(data, &oldFormat); err != nil {
+		return err
+	}
+
+	// Convert old format to new
+	sr.Providers = make([]*ProviderRoute, len(oldFormat.Providers))
+	for i, name := range oldFormat.Providers {
+		sr.Providers[i] = &ProviderRoute{
+			Name:  name,
+			Model: oldFormat.Model, // All providers share the same model in old format
+		}
+	}
+	return nil
+}
+
+// ProviderNames returns the list of provider names in order.
+func (sr *ScenarioRoute) ProviderNames() []string {
+	names := make([]string, len(sr.Providers))
+	for i, pr := range sr.Providers {
+		names[i] = pr.Name
+	}
+	return names
+}
+
+// ModelForProvider returns the model override for a specific provider, or empty string.
+func (sr *ScenarioRoute) ModelForProvider(name string) string {
+	for _, pr := range sr.Providers {
+		if pr.Name == name {
+			return pr.Model
+		}
+	}
+	return ""
 }
 
 // ProfileConfig holds a profile's provider list and optional scenario routing.

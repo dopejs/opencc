@@ -97,7 +97,7 @@ func (s *Store) DeleteProvider(name string) error {
 	for _, pc := range s.config.Profiles {
 		pc.Providers = removeString(pc.Providers, name)
 		for scenario, route := range pc.Routing {
-			route.Providers = removeString(route.Providers, name)
+			route.Providers = filterProviderRoutes(route.Providers, name)
 			if len(route.Providers) == 0 {
 				delete(pc.Routing, scenario)
 			}
@@ -209,7 +209,7 @@ func (s *Store) RemoveFromProfile(profile, name string) error {
 	}
 	pc.Providers = removeString(pc.Providers, name)
 	for scenario, route := range pc.Routing {
-		route.Providers = removeString(route.Providers, name)
+		route.Providers = filterProviderRoutes(route.Providers, name)
 		if len(route.Providers) == 0 {
 			delete(pc.Routing, scenario)
 		}
@@ -370,6 +370,16 @@ func removeString(ss []string, s string) []string {
 	for _, v := range ss {
 		if v != s {
 			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func filterProviderRoutes(routes []*ProviderRoute, name string) []*ProviderRoute {
+	var out []*ProviderRoute
+	for _, pr := range routes {
+		if pr.Name != name {
+			out = append(out, pr)
 		}
 	}
 	return out
