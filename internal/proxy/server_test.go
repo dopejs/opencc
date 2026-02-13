@@ -1323,6 +1323,170 @@ func TestRoutingImageScenario(t *testing.T) {
 	}
 }
 
+func TestRoutingLongContextScenario(t *testing.T) {
+	defaultCalled := false
+	longCtxCalled := false
+
+	defaultBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defaultCalled = true
+		w.WriteHeader(200)
+	}))
+	defer defaultBackend.Close()
+
+	longCtxBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		longCtxCalled = true
+		body, _ := io.ReadAll(r.Body)
+		var data map[string]interface{}
+		json.Unmarshal(body, &data)
+		if data["model"] != "cheap-model" {
+			t.Errorf("model = %v, want %q", data["model"], "cheap-model")
+		}
+		w.WriteHeader(200)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer longCtxBackend.Close()
+
+	u1, _ := url.Parse(defaultBackend.URL)
+	u2, _ := url.Parse(longCtxBackend.URL)
+
+	defaultProvider := &Provider{Name: "default-p", BaseURL: u1, Token: "t1", Model: "m1", Healthy: true}
+	longCtxProvider := &Provider{Name: "cheap-p", BaseURL: u2, Token: "t2", Model: "m2", Healthy: true}
+
+	routing := &RoutingConfig{
+		DefaultProviders: []*Provider{defaultProvider},
+		ScenarioRoutes: map[config.Scenario]*ScenarioProviders{
+			config.ScenarioLongContext: {
+				Providers: []*Provider{longCtxProvider},
+				Model:     "cheap-model",
+			},
+		},
+	}
+
+	// Build a request with >32k chars
+	longText := strings.Repeat("x", 33000)
+	reqBody := fmt.Sprintf(`{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":"%s"}]}`, longText)
+
+	srv := NewProxyServerWithRouting(routing, discardLogger())
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(reqBody))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+	if defaultCalled {
+		t.Error("default provider should not have been called for longContext scenario")
+	}
+	if !longCtxCalled {
+		t.Error("longContext provider should have been called")
+	}
+}
+
+func TestRoutingScenarioFailover(t *testing.T) {
+	// Scenario chain has two providers; first fails 500 → should failover to second
+	p1Called := false
+	p2Called := false
+
+	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p1Called = true
+		w.WriteHeader(500)
+	}))
+	defer backend1.Close()
+
+	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p2Called = true
+		body, _ := io.ReadAll(r.Body)
+		var data map[string]interface{}
+		json.Unmarshal(body, &data)
+		// Model override should persist through failover
+		if data["model"] != "think-override" {
+			t.Errorf("model = %v, want %q", data["model"], "think-override")
+		}
+		w.WriteHeader(200)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer backend2.Close()
+
+	u1, _ := url.Parse(backend1.URL)
+	u2, _ := url.Parse(backend2.URL)
+
+	provider1 := &Provider{Name: "think-p1", BaseURL: u1, Token: "t1", Model: "m1", SonnetModel: "my-sonnet", Healthy: true}
+	provider2 := &Provider{Name: "think-p2", BaseURL: u2, Token: "t2", Model: "m2", SonnetModel: "other-sonnet", Healthy: true}
+
+	routing := &RoutingConfig{
+		DefaultProviders: []*Provider{},
+		ScenarioRoutes: map[config.Scenario]*ScenarioProviders{
+			config.ScenarioThink: {
+				Providers: []*Provider{provider1, provider2},
+				Model:     "think-override",
+			},
+		},
+	}
+
+	srv := NewProxyServerWithRouting(routing, discardLogger())
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(
+		`{"model":"claude-sonnet-4-5","thinking":{"type":"enabled"},"messages":[{"role":"user","content":"hi"}]}`))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+	if !p1Called {
+		t.Error("first think provider should have been called (then failed)")
+	}
+	if !p2Called {
+		t.Error("second think provider should have been called (failover)")
+	}
+}
+
+func TestRoutingScenarioFailoverWithoutModelOverride(t *testing.T) {
+	// Scenario chain with failover, no model override → each provider uses its own mapping
+	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	}))
+	defer backend1.Close()
+
+	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var data map[string]interface{}
+		json.Unmarshal(body, &data)
+		// No model override → should use provider2's sonnet mapping
+		if data["model"] != "p2-sonnet" {
+			t.Errorf("model = %v, want %q", data["model"], "p2-sonnet")
+		}
+		w.WriteHeader(200)
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	defer backend2.Close()
+
+	u1, _ := url.Parse(backend1.URL)
+	u2, _ := url.Parse(backend2.URL)
+
+	provider1 := &Provider{Name: "img-p1", BaseURL: u1, Token: "t1", SonnetModel: "p1-sonnet", Healthy: true}
+	provider2 := &Provider{Name: "img-p2", BaseURL: u2, Token: "t2", SonnetModel: "p2-sonnet", Healthy: true}
+
+	routing := &RoutingConfig{
+		DefaultProviders: []*Provider{},
+		ScenarioRoutes: map[config.Scenario]*ScenarioProviders{
+			config.ScenarioImage: {
+				Providers: []*Provider{provider1, provider2},
+				// No Model → normal mapping per provider
+			},
+		},
+	}
+
+	srv := NewProxyServerWithRouting(routing, discardLogger())
+	req := httptest.NewRequest("POST", "/v1/messages", strings.NewReader(
+		`{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":[{"type":"image","source":{"type":"base64","data":"abc"}}]}]}`))
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Errorf("status = %d, want 200", w.Code)
+	}
+}
+
 func TestRoutingScenarioWithoutModelOverrideUsesNormalMapping(t *testing.T) {
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
