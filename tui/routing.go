@@ -515,9 +515,44 @@ func (w *scenarioEditWrapper) Init() tea.Cmd {
 func (w *scenarioEditWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if w.edit.phase == 1 {
+			// Model editing phase
+			switch msg.String() {
+			case "esc":
+				w.edit.phase = 0
+				w.edit.editingProvider = ""
+				w.edit.modelInput = ""
+			case "enter":
+				if w.edit.editingProvider != "" {
+					if w.edit.providerModels == nil {
+						w.edit.providerModels = make(map[string]string)
+					}
+					trimmed := strings.TrimSpace(w.edit.modelInput)
+					if trimmed != "" {
+						w.edit.providerModels[w.edit.editingProvider] = trimmed
+					} else {
+						delete(w.edit.providerModels, w.edit.editingProvider)
+					}
+				}
+				w.edit.phase = 0
+				w.edit.editingProvider = ""
+				w.edit.modelInput = ""
+			case "backspace":
+				if len(w.edit.modelInput) > 0 {
+					w.edit.modelInput = w.edit.modelInput[:len(w.edit.modelInput)-1]
+				}
+			default:
+				if len(msg.String()) == 1 {
+					w.edit.modelInput += msg.String()
+				}
+			}
+			return w, nil
+		}
+
+		// Phase 0: provider selection
 		switch msg.String() {
 		case "esc":
-			// Return to fallback editor
+			// Return to fallback editor without saving
 			return w, func() tea.Msg { return switchToFallbackMsg{profile: w.profile} }
 		case "enter":
 			// Save and return
@@ -551,51 +586,6 @@ func (w *scenarioEditWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			config.SetProfileConfig(w.profile, pc)
 			return w, func() tea.Msg { return switchToFallbackMsg{profile: w.profile} }
-		}
-	}
-
-	// Handle scenario edit updates
-	if w.edit.phase == 1 {
-		// Model editing phase
-		switch msg := msg.(type) {
-		case tea.KeyMsg:
-			switch msg.String() {
-			case "esc":
-				w.edit.phase = 0
-				w.edit.editingProvider = ""
-				w.edit.modelInput = ""
-			case "enter":
-				if w.edit.editingProvider != "" {
-					if w.edit.providerModels == nil {
-						w.edit.providerModels = make(map[string]string)
-					}
-					trimmed := strings.TrimSpace(w.edit.modelInput)
-					if trimmed != "" {
-						w.edit.providerModels[w.edit.editingProvider] = trimmed
-					} else {
-						delete(w.edit.providerModels, w.edit.editingProvider)
-					}
-				}
-				w.edit.phase = 0
-				w.edit.editingProvider = ""
-				w.edit.modelInput = ""
-			case "backspace":
-				if len(w.edit.modelInput) > 0 {
-					w.edit.modelInput = w.edit.modelInput[:len(w.edit.modelInput)-1]
-				}
-			default:
-				if len(msg.String()) == 1 {
-					w.edit.modelInput += msg.String()
-				}
-			}
-		}
-		return w, nil
-	}
-
-	// Phase 0: provider selection
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
 		case "up", "k":
 			if w.edit.cursor > 0 {
 				w.edit.cursor--

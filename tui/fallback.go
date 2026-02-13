@@ -352,21 +352,18 @@ func (m fallbackModel) view(width, height int) string {
 			}
 
 			// Check if configured
-			configured := false
 			providerCount := 0
 			if order, ok := m.routingOrder[ks.scenario]; ok && len(order) > 0 {
-				configured = true
 				providerCount = len(order)
 			}
 
-			status := dimStyle.Render("[ ]")
-			if configured {
-				status = lipgloss.NewStyle().
-					Foreground(successColor).
-					Render(fmt.Sprintf("[%d]", providerCount))
+			// Show provider count if configured
+			countInfo := ""
+			if providerCount > 0 {
+				countInfo = dimStyle.Render(fmt.Sprintf(" (%d providers)", providerCount))
 			}
 
-			line := fmt.Sprintf("%s%s %s", cursor, status, ks.label)
+			line := fmt.Sprintf("%s%s%s", cursor, ks.label, countInfo)
 			content.WriteString(style.Render(line))
 			if i < len(knownScenarios)-1 {
 				content.WriteString("\n")
