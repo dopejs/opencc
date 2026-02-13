@@ -33,16 +33,17 @@ type routingModel struct {
 	status       string
 }
 
-// scenarioEditModel edits a single scenario's providers and model.
+// scenarioEditModel edits a single scenario's providers and per-provider models.
 type scenarioEditModel struct {
-	scenario     config.Scenario
-	allProviders []string
-	order        []string // selected providers for this scenario
-	model        string   // fixed model override (optional)
-	cursor       int
-	phase        int // 0=select providers, 1=edit model
-	modelInput   string
-	modelCursor  int
+	scenario        config.Scenario
+	allProviders    []string
+	order           []string          // selected providers for this scenario
+	providerModels  map[string]string // provider name → model override
+	cursor          int
+	phase           int    // 0=select providers, 1=edit provider model
+	editingProvider string // provider being edited in phase 1
+	modelInput      string
+	modelCursor     int
 }
 
 var knownScenarios = []struct {
@@ -170,15 +171,28 @@ func (m routingModel) updateEditScenario(msg tea.KeyMsg) (routingModel, tea.Cmd)
 	em := &m.editModel
 
 	if em.phase == 1 {
-		// Model editing phase
+		// Model editing phase for a specific provider
 		switch msg.String() {
 		case "esc":
 			em.phase = 0
+			em.editingProvider = ""
+			em.modelInput = ""
 		case "enter":
-			// Save this scenario route
-			m.saveScenarioRoute()
-			m.phase = 0
-			return m, m.init()
+			// Save model for this provider
+			if em.editingProvider != "" {
+				if em.providerModels == nil {
+					em.providerModels = make(map[string]string)
+				}
+				trimmed := strings.TrimSpace(em.modelInput)
+				if trimmed != "" {
+					em.providerModels[em.editingProvider] = trimmed
+				} else {
+					delete(em.providerModels, em.editingProvider)
+				}
+			}
+			em.phase = 0
+			em.editingProvider = ""
+			em.modelInput = ""
 		case "backspace":
 			if len(em.modelInput) > 0 {
 				em.modelInput = em.modelInput[:len(em.modelInput)-1]
@@ -209,13 +223,29 @@ func (m routingModel) updateEditScenario(msg tea.KeyMsg) (routingModel, tea.Cmd)
 			name := em.allProviders[em.cursor]
 			if idx := scenarioOrderIndex(em.order, name); idx >= 0 {
 				em.order = removeFromScenarioOrder(em.order, name)
+				// Also remove model override if any
+				if em.providerModels != nil {
+					delete(em.providerModels, name)
+				}
 			} else {
 				em.order = append(em.order, name)
 			}
 		}
-	case "tab":
-		// Switch to model input
-		em.phase = 1
+	case "m":
+		// Edit model for selected provider
+		if em.cursor < len(em.allProviders) {
+			name := em.allProviders[em.cursor]
+			// Only allow editing if provider is selected
+			if scenarioOrderIndex(em.order, name) >= 0 {
+				em.phase = 1
+				em.editingProvider = name
+				if em.providerModels != nil {
+					em.modelInput = em.providerModels[name]
+				} else {
+					em.modelInput = ""
+				}
+			}
+		}
 	case "enter":
 		// Save this scenario route
 		m.saveScenarioRoute()
@@ -242,9 +272,18 @@ func (m *routingModel) saveScenarioRoute() {
 			pc.Routing = nil
 		}
 	} else {
+		var providerRoutes []*config.ProviderRoute
+		for _, name := range em.order {
+			pr := &config.ProviderRoute{Name: name}
+			if em.providerModels != nil {
+				if model, ok := em.providerModels[name]; ok && model != "" {
+					pr.Model = model
+				}
+			}
+			providerRoutes = append(providerRoutes, pr)
+		}
 		pc.Routing[em.scenario] = &config.ScenarioRoute{
-			Providers: em.order,
-			Model:     strings.TrimSpace(em.modelInput),
+			Providers: providerRoutes,
 		}
 	}
 	config.SetProfileConfig(m.profile, pc)
@@ -252,17 +291,21 @@ func (m *routingModel) saveScenarioRoute() {
 
 func newScenarioEditModel(scenario config.Scenario, allProviders []string, profile string) scenarioEditModel {
 	em := scenarioEditModel{
-		scenario:     scenario,
-		allProviders: allProviders,
+		scenario:       scenario,
+		allProviders:   allProviders,
+		providerModels: make(map[string]string),
 	}
 
 	// Load existing route data
 	pc := config.GetProfileConfig(profile)
 	if pc != nil && pc.Routing != nil {
 		if route, ok := pc.Routing[scenario]; ok {
-			em.order = make([]string, len(route.Providers))
-			copy(em.order, route.Providers)
-			em.modelInput = route.Model
+			em.order = route.ProviderNames()
+			for _, pr := range route.Providers {
+				if pr.Model != "" {
+					em.providerModels[pr.Name] = pr.Model
+				}
+			}
 		}
 	}
 	return em
@@ -372,10 +415,10 @@ func (m routingModel) renderScenarioEdit() string {
 	content.WriteString("\n")
 
 	if em.phase == 0 {
-		content.WriteString(dimStyle.Render(" Space toggle • tab → model • enter save • esc back"))
+		content.WriteString(dimStyle.Render(" Space toggle • m edit model • enter save • esc back"))
 		content.WriteString("\n\n")
 
-		// Provider list
+		// Provider list with per-provider models
 		for i, name := range em.allProviders {
 			cursor := "  "
 			style := tableRowStyle
@@ -394,23 +437,25 @@ func (m routingModel) renderScenarioEdit() string {
 				checkbox = dimStyle.Render("[ ]")
 			}
 
-			line := fmt.Sprintf("%s%s %s", cursor, checkbox, name)
+			// Show model override if configured
+			modelInfo := ""
+			if idx >= 0 && em.providerModels != nil {
+				if model, ok := em.providerModels[name]; ok && model != "" {
+					modelInfo = dimStyle.Render(fmt.Sprintf(" (model: %s)", model))
+				}
+			}
+
+			line := fmt.Sprintf("%s%s %s%s", cursor, checkbox, name, modelInfo)
 			content.WriteString(style.Render(line))
 			if i < len(em.allProviders)-1 {
 				content.WriteString("\n")
 			}
 		}
-
-		// Show current model
-		content.WriteString("\n\n")
-		modelStr := em.modelInput
-		if modelStr == "" {
-			modelStr = "(use provider mapping)"
-		}
-		content.WriteString(dimStyle.Render(fmt.Sprintf(" Model: %s", modelStr)))
 	} else {
-		// Model editing phase
-		content.WriteString(dimStyle.Render(" Type model name • enter save • esc back to providers"))
+		// Model editing phase for specific provider
+		content.WriteString(dimStyle.Render(fmt.Sprintf(" Editing model for: %s", em.editingProvider)))
+		content.WriteString("\n")
+		content.WriteString(dimStyle.Render(" Type model name • enter save • esc cancel"))
 		content.WriteString("\n\n")
 
 		content.WriteString(sectionTitleStyle.Render(" Model Override"))
@@ -428,7 +473,7 @@ func (m routingModel) renderScenarioEdit() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor).
 		Padding(0, 1).
-		Width(50).
+		Width(60).
 		Render(content.String())
 }
 
