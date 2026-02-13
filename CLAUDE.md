@@ -50,8 +50,8 @@ Do NOT use `gh release create` — the CI pipeline handles release creation auto
 - **Update version constant**: Before releasing, update `Version` in `cmd/root.go` to match the release tag.
 - **Update README**: Before releasing, check that `README.md` reflects all new features and changes.
 - **No summary/explanation docs**: Do NOT create markdown files to summarize or explain completed work. No "implementation notes", no "changes summary", no "feature documentation". The commit message and code comments are sufficient.
-- **Planning docs OK**: Architecture planning and design docs are allowed BEFORE implementation, but delete them after the work is done.
-- **No example files**: Do NOT create example config files (*.json, *.yaml, etc.) in the repository. Examples belong in README.md only.
+- **Keep planning docs**: Architecture planning and design docs should be kept for context across sessions. Store them in a `docs/` folder if needed.
+- **No example files**: Do NOT create example config files (*.json, *.yaml, etc.) in the repository root. Examples belong in README.md or `docs/`.
 - **Minimal test files**: Only add tests for new public APIs or complex logic. Do not create excessive test files for simple functions. Prefer table-driven tests in existing *_test.go files.
 - **No unnecessary files**: Before committing, review `git status` and remove any generated, temporary, or example files that should not be in the repository.
 
