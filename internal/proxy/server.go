@@ -20,10 +20,10 @@ type RoutingConfig struct {
 	ScenarioRoutes   map[config.Scenario]*ScenarioProviders
 }
 
-// ScenarioProviders defines the providers and optional model override for a scenario.
+// ScenarioProviders defines the providers and per-provider model overrides for a scenario.
 type ScenarioProviders struct {
 	Providers []*Provider
-	Model     string // non-empty → skip model mapping, use this model directly
+	Models    map[string]string // provider name → model override
 }
 
 type ProxyServer struct {
@@ -63,17 +63,17 @@ func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	r.Body.Close()
 
-	// Determine provider chain and optional model override from routing
+	// Determine provider chain and per-provider model overrides from routing
 	providers := s.Providers
-	var modelOverride string
+	var modelOverrides map[string]string
 
 	if s.Routing != nil && len(s.Routing.ScenarioRoutes) > 0 {
 		scenario, _ := DetectScenarioFromJSON(bodyBytes)
 		if sp, ok := s.Routing.ScenarioRoutes[scenario]; ok {
 			providers = sp.Providers
-			modelOverride = sp.Model
-			s.Logger.Printf("[routing] scenario=%s, providers=%d, model_override=%q",
-				scenario, len(providers), modelOverride)
+			modelOverrides = sp.Models
+			s.Logger.Printf("[routing] scenario=%s, providers=%d, model_overrides=%d",
+				scenario, len(providers), len(modelOverrides))
 		} else if scenario != config.ScenarioDefault {
 			s.Logger.Printf("[routing] scenario=%s (no route configured, using default)", scenario)
 		}
@@ -83,6 +83,12 @@ func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if !p.IsHealthy() {
 			s.Logger.Printf("[%s] skipping (unhealthy, backoff %v)", p.Name, p.Backoff)
 			continue
+		}
+
+		// Get model override for this specific provider
+		var modelOverride string
+		if modelOverrides != nil {
+			modelOverride = modelOverrides[p.Name]
 		}
 
 		s.Logger.Printf("[%s] trying %s %s", p.Name, r.Method, r.URL.Path)
