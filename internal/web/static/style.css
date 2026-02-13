@@ -536,7 +536,7 @@ input:disabled{opacity:.5;cursor:not-allowed}
   padding:8px 12px;
   border-bottom:1px solid var(--border);
   transition:background var(--dur) var(--ease);
-  user-select:none;cursor:pointer;
+  user-select:none;
 }
 .routing-providers .rp-item:last-child{border-bottom:none}
 .routing-providers .rp-item:hover{background:var(--bg-hover)}
@@ -546,7 +546,7 @@ input:disabled{opacity:.5;cursor:not-allowed}
   border:1.5px solid var(--text-faint);
   display:flex;align-items:center;justify-content:center;
   transition:all var(--dur) var(--ease);
-  background:transparent;
+  background:transparent;cursor:pointer;
 }
 .routing-providers .rp-item.selected .ps-checkbox{
   background:var(--teal);border-color:var(--teal);
@@ -558,6 +558,19 @@ input:disabled{opacity:.5;cursor:not-allowed}
 .routing-providers .rp-item.selected .ps-checkbox svg{opacity:1}
 .routing-providers .rp-item .rp-name{
   flex:1;font-size:12px;font-weight:500;color:var(--text-primary);
+}
+.routing-providers .rp-item .rp-model-input{
+  width:200px;padding:4px 8px;font-size:11px;
+  background:var(--bg-surface);border:1px solid var(--border);
+  border-radius:4px;color:var(--text-primary);
+  transition:border-color var(--dur) var(--ease);
+  font-family:inherit;
+}
+.routing-providers .rp-item .rp-model-input:focus{
+  outline:none;border-color:var(--border-focus);
+}
+.routing-providers .rp-item .rp-model-input::placeholder{
+  color:var(--text-faint);
 }
 .routing-model-group{margin-top:8px}
 .routing-model-group label{

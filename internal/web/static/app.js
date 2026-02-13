@@ -36,7 +36,9 @@
     document.getElementById("btn-add-provider").addEventListener("click", openAddProvider);
     document.getElementById("btn-add-profile").addEventListener("click", openAddProfile);
     document.getElementById("provider-form").addEventListener("submit", submitProvider);
-    document.getElementById("profile-form").addEventListener("submit", submitProfile);
+    document.getElementById("pe-form").addEventListener("submit", function(e) { e.preventDefault(); submitProfile(e); });
+    document.getElementById("pe-cancel").addEventListener("click", function() { switchTab("profiles") });
+    document.getElementById("pe-save").addEventListener("click", function(e) { submitProfile(e) });
     document.getElementById("btn-reload").addEventListener("click", reloadConfig);
     document.getElementById("atp-skip").addEventListener("click", function() { closeModal("add-to-profiles-modal") });
     document.getElementById("atp-confirm").addEventListener("click", confirmAddToProfiles);
@@ -60,8 +62,11 @@
   function switchTab(tab) {
     document.querySelectorAll(".nav-item[data-tab]").forEach(function(n) { n.classList.remove("active") });
     document.querySelectorAll(".tab-content").forEach(function(c) { c.classList.remove("active") });
-    var btn = document.querySelector('.nav-item[data-tab="' + tab + '"]');
-    if (btn) btn.classList.add("active");
+    // Don't activate sidebar for profile-edit (it's a sub-page)
+    if (tab !== "profile-edit") {
+      var btn = document.querySelector('.nav-item[data-tab="' + tab + '"]');
+      if (btn) btn.classList.add("active");
+    }
     var section = document.getElementById("tab-" + tab);
     if (section) section.classList.add("active");
     if (window.location.hash !== "#" + tab) {
@@ -419,24 +424,28 @@
 
   function openAddProfile() {
     editingProfile = null;
-    document.getElementById("profile-modal-title").textContent = "Add Profile";
-    document.getElementById("gf-name").value = "";
-    document.getElementById("gf-name").disabled = false;
+    document.getElementById("pe-title").textContent = "Add Profile";
+    document.getElementById("pe-desc").textContent = "Create a new provider profile";
+    document.getElementById("pe-name").value = "";
+    document.getElementById("pe-name").disabled = false;
+    document.getElementById("pe-name-group").style.display = "block";
     buildProviderSelector([]);
     buildRoutingSection(null);
-    openModal("profile-modal");
+    switchTab("profile-edit");
   }
 
   function editProfileFn(name) {
     editingProfile = name;
     var p = profiles.find(function(x) { return x.name === name });
     if (!p) return;
-    document.getElementById("profile-modal-title").textContent = "Edit Profile";
-    document.getElementById("gf-name").value = name;
-    document.getElementById("gf-name").disabled = true;
+    document.getElementById("pe-title").textContent = "Edit Profile: " + name;
+    document.getElementById("pe-desc").textContent = "Modify provider order and routing rules";
+    document.getElementById("pe-name").value = name;
+    document.getElementById("pe-name").disabled = true;
+    document.getElementById("pe-name-group").style.display = "none";
     buildProviderSelector(p.providers || []);
     buildRoutingSection(p.routing || null);
-    openModal("profile-modal");
+    switchTab("profile-edit");
   }
 
   function deleteProfile(name) {
@@ -450,7 +459,7 @@
   }
 
   function buildProviderSelector(selected) {
-    var container = document.getElementById("gf-providers");
+    var container = document.getElementById("pe-providers");
     var ordered = selected.slice();
     allProviderNames.forEach(function(n) {
       if (ordered.indexOf(n) === -1) ordered.push(n);
@@ -546,7 +555,7 @@
 
   function getSelectedProviders() {
     var result = [];
-    document.querySelectorAll("#gf-providers .ps-item.selected").forEach(function(item) {
+    document.querySelectorAll("#pe-providers .ps-item.selected").forEach(function(item) {
       result.push(item.dataset.name);
     });
     return result;
@@ -560,7 +569,7 @@
   ];
 
   function buildRoutingSection(routing) {
-    var container = document.getElementById("gf-routing");
+    var container = document.getElementById("pe-routing");
     container.innerHTML = "";
     SCENARIOS.forEach(function(s) {
       var route = routing && routing[s.key] ? routing[s.key] : null;
@@ -586,34 +595,46 @@
       var body = document.createElement("div");
       body.className = "routing-scenario-body";
 
-      // Provider checkboxes
+      // Provider checkboxes with per-provider model inputs
       var provList = document.createElement("div");
       provList.className = "routing-providers";
-      var selectedProviders = route ? (route.providers || []) : [];
+
+      // Build map of provider -> model from route
+      var providerModels = {};
+      if (route && route.providers) {
+        route.providers.forEach(function(pr) {
+          if (typeof pr === 'string') {
+            // Old format compatibility
+            providerModels[pr] = route.model || '';
+          } else {
+            // New format: {name, model}
+            providerModels[pr.name] = pr.model || '';
+          }
+        });
+      }
 
       allProviderNames.forEach(function(name) {
-        var checked = selectedProviders.indexOf(name) !== -1;
+        var checked = providerModels.hasOwnProperty(name);
         var item = document.createElement("div");
         item.className = "rp-item" + (checked ? " selected" : "");
         item.dataset.name = name;
+
+        var modelValue = checked ? providerModels[name] : '';
         item.innerHTML =
           '<div class="ps-checkbox">' + ICONS.check + '</div>' +
-          '<span class="rp-name">' + esc(name) + '</span>';
-        item.addEventListener("click", function() {
+          '<span class="rp-name">' + esc(name) + '</span>' +
+          '<input type="text" class="rp-model-input" placeholder="model override" value="' + esc(modelValue) + '">';
+
+        var checkbox = item.querySelector(".ps-checkbox");
+        checkbox.addEventListener("click", function(e) {
+          e.stopPropagation();
           item.classList.toggle("selected");
           updateScenarioStatus(scenario);
         });
+
         provList.appendChild(item);
       });
       body.appendChild(provList);
-
-      // Model input
-      var modelGroup = document.createElement("div");
-      modelGroup.className = "routing-model-group";
-      modelGroup.innerHTML =
-        '<label>Model Override <span style="font-weight:400;color:var(--text-faint)">(optional, leave empty to use provider mapping)</span></label>' +
-        '<input type="text" class="rs-model-input" placeholder="e.g. claude-opus-4-5" value="' + esc(route ? route.model || '' : '') + '">';
-      body.appendChild(modelGroup);
 
       scenario.appendChild(header);
       scenario.appendChild(body);
@@ -638,20 +659,22 @@
   function getRoutingConfig() {
     var routing = {};
     var hasAny = false;
-    document.querySelectorAll("#gf-routing .routing-scenario").forEach(function(scenario) {
+    document.querySelectorAll("#pe-routing .routing-scenario").forEach(function(scenario) {
       var key = scenario.dataset.scenario;
       var selectedItems = scenario.querySelectorAll(".rp-item.selected");
       if (selectedItems.length === 0) return;
 
-      var providerNames = [];
-      selectedItems.forEach(function(item) { providerNames.push(item.dataset.name) });
+      var providerRoutes = [];
+      selectedItems.forEach(function(item) {
+        var route = { name: item.dataset.name };
+        var modelInput = item.querySelector(".rp-model-input");
+        if (modelInput && modelInput.value.trim()) {
+          route.model = modelInput.value.trim();
+        }
+        providerRoutes.push(route);
+      });
 
-      var modelInput = scenario.querySelector(".rs-model-input");
-      var model = modelInput ? modelInput.value.trim() : "";
-
-      var route = { providers: providerNames };
-      if (model) route.model = model;
-      routing[key] = route;
+      routing[key] = { providers: providerRoutes };
       hasAny = true;
     });
     return hasAny ? routing : null;
@@ -668,14 +691,14 @@
       if (routing) body.routing = routing;
       promise = api("PUT", "/profiles/" + encodeURIComponent(editingProfile), body);
     } else {
-      var name = document.getElementById("gf-name").value.trim();
+      var name = document.getElementById("pe-name").value.trim();
       if (!name) { toast("Name is required", "error"); return; }
       var body = { name: name, providers: selected };
       if (routing) body.routing = routing;
       promise = api("POST", "/profiles", body);
     }
     promise.then(function() {
-      closeModal("profile-modal");
+      switchTab("profiles");
       toast(editingProfile ? "Profile updated" : "Profile created");
       loadProfiles();
     }).catch(function(err) { toast(err.message, "error") });
