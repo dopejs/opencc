@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"time"
 )
 
 // --- Path helpers ---
@@ -35,9 +36,10 @@ func legacyDirPath() string {
 
 // Store manages reading and writing the unified JSON config.
 type Store struct {
-	mu     sync.Mutex
-	path   string
-	config *OpenCCConfig
+	mu       sync.Mutex
+	path     string
+	config   *OpenCCConfig
+	modTime  time.Time // last known modification time of config file
 }
 
 var (
@@ -48,12 +50,22 @@ var (
 
 // DefaultStore returns the global Store singleton.
 // On first call it loads from disk (with legacy migration if needed).
+// On subsequent calls, it checks if the config file has been modified
+// and reloads if necessary.
 func DefaultStore() *Store {
 	defaultMu.Lock()
 	defer defaultMu.Unlock()
 	if defaultStore == nil {
 		defaultStore = &Store{path: ConfigFilePath()}
 		defaultStore.Load()
+	} else {
+		// Check if config file has been modified since last load
+		if info, err := os.Stat(defaultStore.path); err == nil {
+			if info.ModTime().After(defaultStore.modTime) {
+				// File has been modified, reload
+				defaultStore.Load()
+			}
+		}
 	}
 	return defaultStore
 }
@@ -266,6 +278,10 @@ func (s *Store) Load() error {
 			cfg.Profiles = make(map[string]*ProfileConfig)
 		}
 		s.config = &cfg
+		// Update modification time
+		if info, statErr := os.Stat(s.path); statErr == nil {
+			s.modTime = info.ModTime()
+		}
 		return nil
 	}
 
@@ -291,6 +307,7 @@ func (s *Store) Load() error {
 		Providers: make(map[string]*ProviderConfig),
 		Profiles:  make(map[string]*ProfileConfig),
 	}
+	s.modTime = time.Time{} // zero time for non-existent file
 	return nil
 }
 
@@ -338,6 +355,10 @@ func (s *Store) saveLocked() error {
 	if err := os.Rename(tmpName, s.path); err != nil {
 		os.Remove(tmpName)
 		return fmt.Errorf("failed to rename config file: %w", err)
+	}
+	// Update modification time after successful save
+	if info, statErr := os.Stat(s.path); statErr == nil {
+		s.modTime = info.ModTime()
 	}
 	return nil
 }
