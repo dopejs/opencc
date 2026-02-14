@@ -24,8 +24,12 @@ type Server struct {
 }
 
 // NewServer creates a new web server bound to 127.0.0.1 on the configured port.
-func NewServer(version string, logger *log.Logger) *Server {
+// If portOverride > 0, it is used instead of the configured port.
+func NewServer(version string, logger *log.Logger, portOverride int) *Server {
 	port := config.GetWebPort()
+	if portOverride > 0 {
+		port = portOverride
+	}
 	s := &Server{
 		logger:  logger,
 		version: version,
@@ -142,8 +146,13 @@ func maskToken(token string) string {
 }
 
 // WaitForReady polls the health endpoint until the server is ready or ctx is cancelled.
-func WaitForReady(ctx context.Context) error {
-	url := fmt.Sprintf("http://127.0.0.1:%d/api/v1/health", config.GetWebPort())
+// If portOverride > 0, it is used instead of the configured port.
+func WaitForReady(ctx context.Context, portOverride int) error {
+	port := config.GetWebPort()
+	if portOverride > 0 {
+		port = portOverride
+	}
+	url := fmt.Sprintf("http://127.0.0.1:%d/api/v1/health", port)
 	client := &http.Client{Timeout: 500 * time.Millisecond}
 	for {
 		select {

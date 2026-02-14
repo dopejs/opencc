@@ -48,7 +48,7 @@ func setupTestServer(t *testing.T) *Server {
 	config.DefaultStore()
 
 	logger := log.New(io.Discard, "", 0)
-	return NewServer("1.0.0-test", logger)
+	return NewServer("1.0.0-test", logger, 0)
 }
 
 func doRequest(s *Server, method, path string, body interface{}) *httptest.ResponseRecorder {
