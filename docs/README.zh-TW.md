@@ -337,8 +337,8 @@ go test ./...
 發佈：推送 tag 後 GitHub Actions 自動建置。
 
 ```sh
-git tag v1.5.0
-git push origin v1.5.0
+git tag v1.5.1
+git push origin v1.5.1
 ```
 
 ## License

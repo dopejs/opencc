@@ -337,8 +337,8 @@ go test ./...
 Release: Push a tag and GitHub Actions will build automatically.
 
 ```sh
-git tag v1.5.0
-git push origin v1.5.0
+git tag v1.5.1
+git push origin v1.5.1
 ```
 
 ## License

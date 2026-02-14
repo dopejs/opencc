@@ -84,3 +84,5 @@ When modifying `OpenCCConfig` or its nested types in a way that changes the JSON
 - v1.3.1: Download progress bar, README refresh
 - v1.3.2: Fix progress bar display (show downloaded/total size)
 - v1.4.0: Scenario routing, token calculation, session cache, project bindings
+- v1.5.0: Dashboard TUI, project binding CLI support, centralized CLI list
+- v1.5.1: Fix symlink dedup in bindings, Web UI dropdown style, --port restriction, config v3→v5 migration, SQLite log storage
