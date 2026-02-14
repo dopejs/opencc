@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dopejs/opencc/internal/daemon"
 	"github.com/spf13/cobra"
 )
 
@@ -144,6 +145,19 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Successfully upgraded to %s\n", target)
+
+	// Restart web daemon if it was running
+	if pid, running := daemon.IsRunning(); running {
+		fmt.Printf("Web daemon is running (PID %d), restarting...\n", pid)
+		if err := daemon.StopDaemon(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to stop web daemon: %v\n", err)
+		} else if err := startDaemon(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to restart web daemon: %v\n", err)
+		} else {
+			fmt.Println("Web daemon restarted.")
+		}
+	}
+
 	return nil
 }
 
