@@ -1092,7 +1092,7 @@
       .then(function(data) {
         settings = data;
         renderSettings(data);
-        showToast("Settings saved", "success");
+        toast("Settings saved", "success");
       })
       .catch(function(err) {
         showToast(err.message, "error");
