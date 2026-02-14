@@ -54,13 +54,18 @@ func NewServer(version string, logger *log.Logger) *Server {
 }
 
 // Start begins listening. Returns an error if the port is already in use.
+// Returns nil on graceful shutdown (http.ErrServerClosed).
 func (s *Server) Start() error {
 	ln, err := net.Listen("tcp", s.httpServer.Addr)
 	if err != nil {
 		return fmt.Errorf("port %d is already in use: %w", config.WebPort, err)
 	}
 	s.logger.Printf("Web server listening on %s", s.httpServer.Addr)
-	return s.httpServer.Serve(ln)
+	err = s.httpServer.Serve(ln)
+	if err == http.ErrServerClosed {
+		return nil // graceful shutdown
+	}
+	return err
 }
 
 // Shutdown gracefully stops the server.

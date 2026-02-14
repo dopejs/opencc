@@ -20,15 +20,21 @@ var pickCmd = &cobra.Command{
 func runPick(cmd *cobra.Command, args []string) error {
 	available := config.ProviderNames()
 	if len(available) == 0 {
-		return fmt.Errorf("no providers configured. Run 'opencc config' to set up providers")
+		fmt.Println("No providers configured. Run 'opencc config' to set up providers.")
+		return nil
 	}
 
 	selected, err := tui.RunPick()
 	if err != nil {
+		// User cancelled
+		if err.Error() == "cancelled" {
+			return nil
+		}
 		return err
 	}
 	if len(selected) == 0 {
-		return fmt.Errorf("no providers selected")
+		// User cancelled without selecting
+		return nil
 	}
 
 	return startProxy(selected, nil, args)

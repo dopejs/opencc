@@ -31,6 +31,10 @@ var webStopCmd = &cobra.Command{
 	Use:   "stop",
 	Short: "Stop the web daemon",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if _, running := daemon.IsRunning(); !running {
+			fmt.Println("Web server is not running.")
+			return nil
+		}
 		if err := daemon.StopDaemon(); err != nil {
 			return err
 		}

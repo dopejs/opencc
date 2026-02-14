@@ -617,6 +617,30 @@ type Action struct {
 
 ---
 
+## Exit Code Convention
+
+程序应尽量避免 exit code > 0，除非是真正的程序错误。以下情况应该 exit 0 并给出友好提示：
+
+| 场景 | Exit Code | 用户提示 |
+|------|-----------|----------|
+| 用户取消操作 (Esc/Ctrl-C) | 0 | 无或 "Cancelled" |
+| `opencc web` + Ctrl-C | 0 | "Web server stopped." |
+| `opencc web stop` 但服务未运行 | 0 | "Web server is not running." |
+| `opencc pick` 用户取消 | 0 | 无 |
+| 配置/Provider 不存在 | 0 | "Configuration 'xxx' not found." |
+| 无 provider 配置 | 0 | "No providers configured. Run 'opencc config' to set up." |
+| Profile 不存在 | 0 | "Profile 'xxx' not found." |
+
+以下情况应该 exit 1（真正的错误）：
+
+| 场景 | Exit Code | 说明 |
+|------|-----------|------|
+| 配置文件损坏/无法解析 | 1 | JSON 语法错误等 |
+| 网络/IO 错误 | 1 | 无法连接、文件权限等 |
+| 子进程异常退出 | 传递子进程 exit code | claude 等 CLI 的退出码 |
+
+---
+
 ## Open Questions
 
 1. **Minimum terminal width**: 80 or 100 columns for split view?

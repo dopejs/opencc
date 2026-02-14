@@ -30,7 +30,7 @@ func runUse(cmd *cobra.Command, args []string) error {
 		} else {
 			fmt.Println("\nNo providers configured. Run 'opencc config' to set up providers.")
 		}
-		return fmt.Errorf("provider name required")
+		return nil
 	}
 
 	configName := args[0]
@@ -43,7 +43,7 @@ func runUse(cmd *cobra.Command, args []string) error {
 		} else {
 			fmt.Println("No providers configured. Run 'opencc config' to set up providers.")
 		}
-		return fmt.Errorf("configuration '%s' not found", configName)
+		return nil
 	}
 
 	// Find claude binary

@@ -404,22 +404,28 @@ func resolveProviderNames(profileFlag string) ([]string, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
+	if names == nil {
+		// User cancelled
+		return nil, "", fmt.Errorf("cancelled")
+	}
 	return names, "default", nil
 }
 
 // interactiveSelectProviders uses TUI to select providers.
 // If no providers exist, launches the create-first editor.
 // Otherwise launches the checkbox picker.
+// Returns nil, nil if user cancels.
 func interactiveSelectProviders() ([]string, error) {
 	available := config.ProviderNames()
 	if len(available) == 0 {
 		// No providers at all — launch TUI editor to create one
 		name, err := tui.RunCreateFirst()
 		if err != nil {
-			return nil, fmt.Errorf("no providers configured")
+			// User cancelled
+			return nil, nil
 		}
 		if name == "" {
-			return nil, fmt.Errorf("no providers configured")
+			return nil, nil
 		}
 		return []string{name}, nil
 	}
@@ -427,10 +433,11 @@ func interactiveSelectProviders() ([]string, error) {
 	// Providers exist but no default profile — launch picker
 	selected, err := tui.RunPick()
 	if err != nil {
-		return nil, err
+		// User cancelled
+		return nil, nil
 	}
 	if len(selected) == 0 {
-		return nil, fmt.Errorf("no providers selected")
+		return nil, nil
 	}
 
 	// Write selection to default profile
