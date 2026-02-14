@@ -52,11 +52,10 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 
 	current := Version
 	if target == current {
-		fmt.Printf("Already at version %s\n", current)
-		return nil
+		fmt.Printf("Already at version %s, reinstalling...\n", current)
+	} else {
+		fmt.Printf("Upgrading: %s → %s\n", current, target)
 	}
-
-	fmt.Printf("Upgrading: %s → %s\n", current, target)
 
 	// Determine download format based on version
 	// v1.4.0+ uses tar.gz, earlier versions use raw binary
