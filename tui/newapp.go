@@ -16,6 +16,9 @@ const (
 	ScreenMenu AppScreen = iota
 	ScreenDashboard
 	ScreenSettings
+	ScreenProviderEdit
+	ScreenProfileEdit
+	ScreenLaunch
 )
 
 // NewAppModel is the main application model for the new TUI.
@@ -24,6 +27,9 @@ type NewAppModel struct {
 	menu      MenuModel
 	dashboard DashboardModel
 	settings  SettingsModel
+	editor    editorModel
+	fallback  fallbackModel
+	launch    LaunchModel
 	width     int
 	height    int
 }
@@ -35,6 +41,7 @@ func NewNewAppModel() NewAppModel {
 		menu:      NewMenuModel(),
 		dashboard: NewDashboardModel(),
 		settings:  NewSettingsModel(),
+		launch:    NewLaunchModel(),
 	}
 }
 
@@ -58,6 +65,12 @@ func (m NewAppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateDashboard(msg)
 	case ScreenSettings:
 		return m.updateSettings(msg)
+	case ScreenProviderEdit:
+		return m.updateProviderEdit(msg)
+	case ScreenProfileEdit:
+		return m.updateProfileEdit(msg)
+	case ScreenLaunch:
+		return m.updateLaunch(msg)
 	}
 
 	return m, nil
@@ -68,8 +81,9 @@ func (m NewAppModel) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case MenuSelectedMsg:
 		switch msg.Action {
 		case MenuLaunch:
-			// TODO: Launch wizard
-			return m, tea.Quit
+			m.screen = ScreenLaunch
+			m.launch.Refresh()
+			return m, nil
 		case MenuConfigure:
 			m.screen = ScreenDashboard
 			m.dashboard.Refresh()
@@ -95,14 +109,28 @@ func (m NewAppModel) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m NewAppModel) updateDashboard(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case DashboardBackMsg:
 		m.screen = ScreenMenu
 		m.menu.Refresh()
 		return m, nil
-	case DashboardEditProviderMsg, DashboardEditProfileMsg, DashboardAddProviderMsg, DashboardAddProfileMsg:
-		// TODO: Integrate with existing editors or create new ones
-		return m, nil
+	case DashboardEditProviderMsg:
+		m.screen = ScreenProviderEdit
+		m.editor = newEditorModel(msg.Name)
+		return m, m.editor.init()
+	case DashboardEditProfileMsg:
+		m.screen = ScreenProfileEdit
+		m.fallback = newFallbackModel(msg.Name)
+		return m, m.fallback.init()
+	case DashboardAddProviderMsg:
+		m.screen = ScreenProviderEdit
+		m.editor = newEditorModel("")
+		return m, m.editor.init()
+	case DashboardAddProfileMsg:
+		// Create new profile with default name
+		m.screen = ScreenProfileEdit
+		m.fallback = newFallbackModel("")
+		return m, m.fallback.init()
 	}
 
 	var cmd tea.Cmd
@@ -123,6 +151,52 @@ func (m NewAppModel) updateSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m NewAppModel) updateProviderEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Handle messages from editor
+	switch msg.(type) {
+	case switchToListMsg:
+		m.screen = ScreenDashboard
+		m.dashboard.Refresh()
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.editor, cmd = m.editor.update(msg)
+	return m, cmd
+}
+
+func (m NewAppModel) updateProfileEdit(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Handle messages from fallback editor
+	switch msg.(type) {
+	case switchToListMsg:
+		m.screen = ScreenDashboard
+		m.dashboard.Refresh()
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.fallback, cmd = m.fallback.update(msg)
+	return m, cmd
+}
+
+func (m NewAppModel) updateLaunch(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case LaunchBackMsg:
+		m.screen = ScreenMenu
+		return m, nil
+	case LaunchStartMsg:
+		// Return the launch command to be executed
+		return m, tea.Batch(
+			tea.Quit,
+			func() tea.Msg { return msg },
+		)
+	}
+
+	var cmd tea.Cmd
+	m.launch, cmd = m.launch.Update(msg)
+	return m, cmd
+}
+
 // View implements tea.Model.
 func (m NewAppModel) View() string {
 	switch m.screen {
@@ -132,6 +206,12 @@ func (m NewAppModel) View() string {
 		return m.dashboard.View()
 	case ScreenSettings:
 		return m.settings.View()
+	case ScreenProviderEdit:
+		return m.editor.view(m.width, m.height)
+	case ScreenProfileEdit:
+		return m.fallback.view(m.width, m.height)
+	case ScreenLaunch:
+		return m.launch.View()
 	}
 	return ""
 }
@@ -147,9 +227,30 @@ func openBrowser(url string) {
 	}
 }
 
+// LaunchResult holds the result of the launch wizard.
+type LaunchResult struct {
+	Profile string
+	CLI     string
+}
+
 // RunNewApp runs the new TUI application.
-func RunNewApp() error {
+// Returns LaunchResult if user selected Launch, nil otherwise.
+func RunNewApp() (*LaunchResult, error) {
 	p := tea.NewProgram(NewNewAppModel(), tea.WithAltScreen())
-	_, err := p.Run()
-	return err
+	finalModel, err := p.Run()
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if we got a launch message
+	if m, ok := finalModel.(NewAppModel); ok {
+		if m.screen == ScreenLaunch {
+			return &LaunchResult{
+				Profile: m.launch.selectedProfile,
+				CLI:     m.launch.selectedCLI,
+			}, nil
+		}
+	}
+
+	return nil, nil
 }
