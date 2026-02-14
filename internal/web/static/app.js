@@ -35,6 +35,7 @@
   function init() {
     setupNav();
     setupModals();
+    setupCustomSelects();
     setupAutocomplete();
     setupProviderEdit();
     setupLogs();
@@ -192,6 +193,162 @@
     ["claude", "codex", "opencode"].forEach(function(cli) {
       var container = document.getElementById("env-vars-" + cli);
       if (container) container.innerHTML = "";
+    });
+  }
+
+  // --- Custom Select (styled like autocomplete dropdown) ---
+  function setupCustomSelects() {
+    document.querySelectorAll("select").forEach(function(sel) {
+      wrapSelect(sel);
+    });
+  }
+
+  function wrapSelect(sel) {
+    // Create wrapper
+    var wrap = document.createElement("div");
+    wrap.className = "cs-wrap";
+    sel.parentNode.insertBefore(wrap, sel);
+    wrap.appendChild(sel);
+
+    // Create trigger button
+    var trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "cs-trigger";
+    trigger.textContent = getSelectedText(sel);
+    wrap.appendChild(trigger);
+
+    // Create dropdown reusing ac-dropdown styles
+    var dropdown = document.createElement("div");
+    dropdown.className = "ac-dropdown";
+    wrap.appendChild(dropdown);
+
+    function getSelectedText(s) {
+      return s.options[s.selectedIndex] ? s.options[s.selectedIndex].textContent : "";
+    }
+
+    function buildOptions() {
+      dropdown.innerHTML = "";
+      for (var i = 0; i < sel.options.length; i++) {
+        (function(idx) {
+          var opt = sel.options[idx];
+          var div = document.createElement("div");
+          div.className = "ac-option" + (idx === sel.selectedIndex ? " active" : "");
+          div.textContent = opt.textContent;
+          div.addEventListener("mousedown", function(e) {
+            e.preventDefault();
+            sel.selectedIndex = idx;
+            trigger.textContent = opt.textContent;
+            close();
+            sel.dispatchEvent(new Event("change", { bubbles: true }));
+          });
+          dropdown.appendChild(div);
+        })(i);
+      }
+    }
+
+    function positionDropdown() {
+      dropdown.classList.remove("flip");
+      var rect = wrap.getBoundingClientRect();
+      var spaceBelow = window.innerHeight - rect.bottom;
+      var ddHeight = dropdown.offsetHeight;
+      if (spaceBelow < ddHeight + 4 && rect.top > ddHeight + 4) {
+        dropdown.classList.add("flip");
+      }
+    }
+
+    function open() {
+      buildOptions();
+      dropdown.classList.add("open");
+      positionDropdown();
+    }
+
+    function close() {
+      dropdown.classList.remove("open");
+    }
+
+    trigger.addEventListener("click", function(e) {
+      e.stopPropagation();
+      if (dropdown.classList.contains("open")) {
+        close();
+      } else {
+        // Close all other custom selects
+        document.querySelectorAll(".cs-wrap .ac-dropdown.open").forEach(function(d) {
+          d.classList.remove("open");
+        });
+        open();
+      }
+    });
+
+    trigger.addEventListener("keydown", function(e) {
+      if (e.key === "Escape") {
+        close();
+      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        if (!dropdown.classList.contains("open")) {
+          open();
+          return;
+        }
+        var dir = e.key === "ArrowDown" ? 1 : -1;
+        var newIdx = sel.selectedIndex + dir;
+        if (newIdx >= 0 && newIdx < sel.options.length) {
+          sel.selectedIndex = newIdx;
+          trigger.textContent = getSelectedText(sel);
+          buildOptions();
+          sel.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      } else if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        if (dropdown.classList.contains("open")) {
+          close();
+        } else {
+          open();
+        }
+      }
+    });
+
+    // Close on outside click
+    document.addEventListener("click", function(e) {
+      if (!wrap.contains(e.target)) close();
+    });
+
+    // Sync trigger text when select value changes programmatically
+    // Use a MutationObserver on the select for innerHTML changes (dynamic options)
+    var observer = new MutationObserver(function() {
+      trigger.textContent = getSelectedText(sel);
+    });
+    observer.observe(sel, { childList: true, subtree: true, attributes: true });
+
+    // Also sync on value property set via JS
+    // (handled via Object.defineProperty override below)
+
+    // Listen for change events (handles programmatic changes via dispatchEvent)
+    sel.addEventListener("change", function() {
+      trigger.textContent = getSelectedText(sel);
+    });
+
+    // Store reference for refresh
+    sel._csWrap = wrap;
+    sel._csTrigger = trigger;
+
+    // Override value setter so programmatic sel.value = "x" updates trigger
+    var valueDesc = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value");
+    Object.defineProperty(sel, "value", {
+      get: function() { return valueDesc.get.call(sel); },
+      set: function(v) {
+        valueDesc.set.call(sel, v);
+        trigger.textContent = getSelectedText(sel);
+      },
+      configurable: true
+    });
+
+    var siDesc = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "selectedIndex");
+    Object.defineProperty(sel, "selectedIndex", {
+      get: function() { return siDesc.get.call(sel); },
+      set: function(v) {
+        siDesc.set.call(sel, v);
+        trigger.textContent = getSelectedText(sel);
+      },
+      configurable: true
     });
   }
 
