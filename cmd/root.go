@@ -23,7 +23,7 @@ import (
 // stdinReader is the reader used for interactive prompts. Tests can replace it.
 var stdinReader io.Reader = os.Stdin
 
-var Version = "1.5.1"
+var Version = "1.5.2"
 
 var rootCmd = &cobra.Command{
 	Use:   "opencc [cli args...]",
