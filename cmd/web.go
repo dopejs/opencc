@@ -49,7 +49,7 @@ var webStatusCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		pid, running := daemon.IsRunning()
 		if running {
-			fmt.Printf("Web server is running (PID %d) on http://127.0.0.1:%d\n", pid, config.WebPort)
+			fmt.Printf("Web server is running (PID %d) on http://127.0.0.1:%d\n", pid, config.GetWebPort())
 		} else {
 			fmt.Println("Web server is not running.")
 		}
@@ -138,16 +138,17 @@ func runWebForeground() error {
 	// Check if already running.
 	if pid, running := daemon.IsRunning(); running {
 		fmt.Printf("Web server already running (PID %d). Opening browser...\n", pid)
-		openBrowser(fmt.Sprintf("http://127.0.0.1:%d", config.WebPort))
+		openBrowser(fmt.Sprintf("http://127.0.0.1:%d", config.GetWebPort()))
 		return nil
 	}
 
-	fmt.Printf("Starting web server on http://127.0.0.1:%d\n", config.WebPort)
+	port := config.GetWebPort()
+	fmt.Printf("Starting web server on http://127.0.0.1:%d\n", port)
 
 	// Open browser after a short delay to let server start.
 	go func() {
 		time.Sleep(300 * time.Millisecond)
-		openBrowser(fmt.Sprintf("http://127.0.0.1:%d", config.WebPort))
+		openBrowser(fmt.Sprintf("http://127.0.0.1:%d", port))
 	}()
 
 	return runWebServer()
@@ -191,7 +192,7 @@ func startDaemon() error {
 		return fmt.Errorf("daemon started but server did not become ready: %w", err)
 	}
 
-	fmt.Printf("Web server started in background (PID %d) on http://127.0.0.1:%d\n", child.Process.Pid, config.WebPort)
+	fmt.Printf("Web server started in background (PID %d) on http://127.0.0.1:%d\n", child.Process.Pid, config.GetWebPort())
 	return nil
 }
 

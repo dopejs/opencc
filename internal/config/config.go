@@ -10,9 +10,12 @@ const (
 	ConfigFile = "opencc.json"
 	LegacyDir  = ".cc_envs"
 
-	WebPort    = 19840
-	WebPidFile = "web.pid"
-	WebLogFile = "web.log"
+	DefaultWebPort = 19840
+	WebPidFile     = "web.pid"
+	WebLogFile     = "web.log"
+
+	DefaultProfileName = "default"
+	DefaultCLIName     = "claude"
 )
 
 // ProviderConfig holds connection and model settings for a single API provider.
@@ -173,12 +176,16 @@ func (pc *ProfileConfig) UnmarshalJSON(data []byte) error {
 // - Version 1 (implicit, no version field): profiles as string arrays
 // - Version 2 (v1.3.2+): profiles as objects with routing support
 // - Version 3 (v1.4.0+): project bindings support
-const CurrentConfigVersion = 3
+// - Version 4 (v1.5.0+): default profile and web port settings
+const CurrentConfigVersion = 4
 
 // OpenCCConfig is the top-level configuration structure stored in opencc.json.
 type OpenCCConfig struct {
-	Version         int                         `json:"version,omitempty"`         // config file version
-	Providers       map[string]*ProviderConfig  `json:"providers"`                 // provider configurations
-	Profiles        map[string]*ProfileConfig   `json:"profiles"`                  // profile configurations
-	ProjectBindings map[string]string           `json:"project_bindings,omitempty"` // directory path -> profile name
+	Version         int                        `json:"version,omitempty"`          // config file version
+	DefaultProfile  string                     `json:"default_profile,omitempty"`  // default profile name (defaults to "default")
+	DefaultCLI      string                     `json:"default_cli,omitempty"`      // default CLI (claude, codex, opencode)
+	WebPort         int                        `json:"web_port,omitempty"`         // web UI port (defaults to 19841)
+	Providers       map[string]*ProviderConfig `json:"providers"`                  // provider configurations
+	Profiles        map[string]*ProfileConfig  `json:"profiles"`                   // profile configurations
+	ProjectBindings map[string]string          `json:"project_bindings,omitempty"` // directory path -> profile name
 }

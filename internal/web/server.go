@@ -20,13 +20,16 @@ type Server struct {
 	httpServer *http.Server
 	logger     *log.Logger
 	version    string
+	port       int
 }
 
 // NewServer creates a new web server bound to 127.0.0.1 on the configured port.
 func NewServer(version string, logger *log.Logger) *Server {
+	port := config.GetWebPort()
 	s := &Server{
 		logger:  logger,
 		version: version,
+		port:    port,
 	}
 
 	mux := http.NewServeMux()
@@ -39,6 +42,7 @@ func NewServer(version string, logger *log.Logger) *Server {
 	mux.HandleFunc("/api/v1/profiles", s.handleProfiles)
 	mux.HandleFunc("/api/v1/profiles/", s.handleProfile)
 	mux.HandleFunc("/api/v1/logs", s.handleLogs)
+	mux.HandleFunc("/api/v1/settings", s.handleSettings)
 
 	// Static files
 	staticSub, _ := fs.Sub(staticFS, "static")
@@ -46,7 +50,7 @@ func NewServer(version string, logger *log.Logger) *Server {
 	mux.Handle("/", fileServer)
 
 	s.httpServer = &http.Server{
-		Addr:    fmt.Sprintf("127.0.0.1:%d", config.WebPort),
+		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
 		Handler: s.securityHeaders(mux),
 	}
 
@@ -58,7 +62,7 @@ func NewServer(version string, logger *log.Logger) *Server {
 func (s *Server) Start() error {
 	ln, err := net.Listen("tcp", s.httpServer.Addr)
 	if err != nil {
-		return fmt.Errorf("port %d is already in use: %w", config.WebPort, err)
+		return fmt.Errorf("port %d is already in use: %w", s.port, err)
 	}
 	s.logger.Printf("Web server listening on %s", s.httpServer.Addr)
 	err = s.httpServer.Serve(ln)
@@ -137,7 +141,7 @@ func maskToken(token string) string {
 
 // WaitForReady polls the health endpoint until the server is ready or ctx is cancelled.
 func WaitForReady(ctx context.Context) error {
-	url := fmt.Sprintf("http://127.0.0.1:%d/api/v1/health", config.WebPort)
+	url := fmt.Sprintf("http://127.0.0.1:%d/api/v1/health", config.GetWebPort())
 	client := &http.Client{Timeout: 500 * time.Millisecond}
 	for {
 		select {

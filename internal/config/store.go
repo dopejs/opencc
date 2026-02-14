@@ -239,15 +239,25 @@ func (s *Store) RemoveFromProfile(profile, name string) error {
 	return s.saveLocked()
 }
 
-// DeleteProfile deletes a profile. Cannot delete "default".
+// DeleteProfile deletes a profile. Cannot delete the default profile.
 func (s *Store) DeleteProfile(profile string) error {
-	if profile == "" || profile == "default" {
-		return fmt.Errorf("cannot delete the default profile")
+	if profile == "" {
+		return fmt.Errorf("profile name cannot be empty")
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.reloadIfModified()
 	s.ensureConfig()
+
+	// Check if this is the default profile
+	defaultProfile := s.config.DefaultProfile
+	if defaultProfile == "" {
+		defaultProfile = DefaultProfileName
+	}
+	if profile == defaultProfile {
+		return fmt.Errorf("cannot delete the default profile '%s'", profile)
+	}
+
 	delete(s.config.Profiles, profile)
 	return s.saveLocked()
 }
@@ -266,6 +276,74 @@ func (s *Store) ListProfiles() []string {
 	}
 	sort.Strings(names)
 	return names
+}
+
+// --- Global Settings ---
+
+// GetDefaultProfile returns the configured default profile name.
+// Returns "default" if not set.
+func (s *Store) GetDefaultProfile() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reloadIfModified()
+	if s.config == nil || s.config.DefaultProfile == "" {
+		return DefaultProfileName
+	}
+	return s.config.DefaultProfile
+}
+
+// SetDefaultProfile sets the default profile name.
+func (s *Store) SetDefaultProfile(profile string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reloadIfModified()
+	s.ensureConfig()
+	s.config.DefaultProfile = profile
+	return s.saveLocked()
+}
+
+// GetDefaultCLI returns the configured default CLI.
+// Returns "claude" if not set.
+func (s *Store) GetDefaultCLI() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reloadIfModified()
+	if s.config == nil || s.config.DefaultCLI == "" {
+		return DefaultCLIName
+	}
+	return s.config.DefaultCLI
+}
+
+// SetDefaultCLI sets the default CLI.
+func (s *Store) SetDefaultCLI(cli string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reloadIfModified()
+	s.ensureConfig()
+	s.config.DefaultCLI = cli
+	return s.saveLocked()
+}
+
+// GetWebPort returns the configured web UI port.
+// Returns DefaultWebPort if not set.
+func (s *Store) GetWebPort() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reloadIfModified()
+	if s.config == nil || s.config.WebPort == 0 {
+		return DefaultWebPort
+	}
+	return s.config.WebPort
+}
+
+// SetWebPort sets the web UI port.
+func (s *Store) SetWebPort(port int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reloadIfModified()
+	s.ensureConfig()
+	s.config.WebPort = port
+	return s.saveLocked()
 }
 
 // --- I/O ---

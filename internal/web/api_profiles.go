@@ -1,6 +1,7 @@
 package web
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -211,12 +212,15 @@ func (s *Server) updateProfile(w http.ResponseWriter, r *http.Request, name stri
 }
 
 func (s *Server) deleteProfile(w http.ResponseWriter, r *http.Request, name string) {
-	if name == "default" {
-		writeError(w, http.StatusForbidden, "cannot delete the default profile")
+	store := config.DefaultStore()
+
+	// Check if this is the default profile
+	defaultProfile := store.GetDefaultProfile()
+	if name == defaultProfile {
+		writeError(w, http.StatusForbidden, fmt.Sprintf("cannot delete the default profile '%s'", name))
 		return
 	}
 
-	store := config.DefaultStore()
 	existing := store.GetProfileOrder(name)
 	if existing == nil {
 		writeError(w, http.StatusNotFound, "profile not found")

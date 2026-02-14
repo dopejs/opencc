@@ -108,8 +108,9 @@ func (m configMainModel) startDelete() (configMainModel, tea.Cmd) {
 		}
 		m.deleting = true
 	} else {
-		if m.cursor < len(m.groups) && m.groups[m.cursor].name == "default" {
-			m.status = "Cannot delete the default group"
+		defaultProfile := config.GetDefaultProfile()
+		if m.cursor < len(m.groups) && m.groups[m.cursor].name == defaultProfile {
+			m.status = fmt.Sprintf("Cannot delete the default profile '%s'", defaultProfile)
 			return m, nil
 		}
 		m.deleting = true

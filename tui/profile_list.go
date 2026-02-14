@@ -93,8 +93,9 @@ func (m profileListModel) handleKey(msg tea.KeyMsg) (profileListModel, tea.Cmd) 
 		return m, textinput.Blink
 	case "d":
 		if len(m.profiles) > 0 {
-			if m.profiles[m.cursor].name == "default" {
-				m.status = "Cannot delete the default group"
+			defaultProfile := config.GetDefaultProfile()
+			if m.profiles[m.cursor].name == defaultProfile {
+				m.status = fmt.Sprintf("Cannot delete the default profile '%s'", defaultProfile)
 			} else {
 				m.deleting = true
 			}

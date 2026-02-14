@@ -394,9 +394,10 @@ func resolveProviderNames(profileFlag string) ([]string, string, error) {
 	}
 
 	// No binding → use default profile
+	defaultProfile := config.GetDefaultProfile()
 	fbNames, err := config.ReadFallbackOrder()
 	if err == nil && len(fbNames) > 0 {
-		return fbNames, "default", nil
+		return fbNames, defaultProfile, nil
 	}
 
 	// default profile missing or empty — interactive selection
@@ -408,7 +409,7 @@ func resolveProviderNames(profileFlag string) ([]string, string, error) {
 		// User cancelled
 		return nil, "", fmt.Errorf("cancelled")
 	}
-	return names, "default", nil
+	return names, defaultProfile, nil
 }
 
 // interactiveSelectProviders uses TUI to select providers.

@@ -50,7 +50,7 @@ func RemoveFromProfileOrder(profile, name string) error {
 	return DefaultStore().RemoveFromProfile(profile, name)
 }
 
-// DeleteProfile deletes a profile. Cannot delete "default".
+// DeleteProfile deletes a profile. Cannot delete the default profile.
 func DeleteProfile(profile string) error {
 	return DefaultStore().DeleteProfile(profile)
 }
@@ -74,17 +74,49 @@ func SetProfileConfig(profile string, pc *ProfileConfig) error {
 
 // ReadFallbackOrder reads the default profile's provider order.
 func ReadFallbackOrder() ([]string, error) {
-	return ReadProfileOrder("default")
+	return ReadProfileOrder(DefaultStore().GetDefaultProfile())
 }
 
 // WriteFallbackOrder writes the default profile's provider order.
 func WriteFallbackOrder(names []string) error {
-	return WriteProfileOrder("default", names)
+	return WriteProfileOrder(DefaultStore().GetDefaultProfile(), names)
 }
 
 // RemoveFromFallbackOrder removes a provider from the default profile.
 func RemoveFromFallbackOrder(name string) error {
-	return RemoveFromProfileOrder("default", name)
+	return RemoveFromProfileOrder(DefaultStore().GetDefaultProfile(), name)
+}
+
+// --- Global Settings convenience functions ---
+
+// GetDefaultProfile returns the configured default profile name.
+func GetDefaultProfile() string {
+	return DefaultStore().GetDefaultProfile()
+}
+
+// SetDefaultProfile sets the default profile name.
+func SetDefaultProfile(profile string) error {
+	return DefaultStore().SetDefaultProfile(profile)
+}
+
+// GetDefaultCLI returns the configured default CLI.
+func GetDefaultCLI() string {
+	return DefaultStore().GetDefaultCLI()
+}
+
+// SetDefaultCLI sets the default CLI.
+func SetDefaultCLI(cli string) error {
+	return DefaultStore().SetDefaultCLI(cli)
+}
+
+// GetWebPort returns the configured web UI port.
+func GetWebPort() int {
+	return DefaultStore().GetWebPort()
+}
+
+// SetWebPort sets the web UI port.
+func SetWebPort(port int) error {
+	return DefaultStore().SetWebPort(port)
 }
 
 // --- Project Bindings convenience functions ---
