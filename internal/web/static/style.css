@@ -857,3 +857,18 @@ input:disabled{opacity:.5;cursor:not-allowed}
   opacity:.5;
 }
 
+.log-response{
+  display:block;
+  margin-top:4px;
+  padding:6px 8px;
+  background:var(--bg-base);
+  border:1px solid var(--border);
+  border-radius:4px;
+  font-size:11px;
+  color:var(--text-muted);
+  word-break:break-all;
+  white-space:pre-wrap;
+  max-height:120px;
+  overflow-y:auto;
+}
+

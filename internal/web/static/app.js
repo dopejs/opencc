@@ -938,6 +938,9 @@
         html += '<span class="log-path">' + esc(entry.method) + ' ' + esc(entry.path) + '</span> ';
       }
       html += esc(entry.message);
+      if (entry.response_body) {
+        html += ' <span class="log-response">' + esc(entry.response_body) + '</span>';
+      }
       if (entry.error) {
         html += ' <span style="color:var(--red)">' + esc(entry.error) + '</span>';
       }

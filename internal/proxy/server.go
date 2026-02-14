@@ -2,7 +2,9 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -124,12 +126,26 @@ func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	for _, p := range providers {
-		if !p.IsHealthy() {
+	// Track provider failure details for error reporting
+	type providerFailure struct {
+		Name       string
+		StatusCode int
+		Body       string
+	}
+	var failures []providerFailure
+
+	for i, p := range providers {
+		isLast := i == len(providers)-1
+
+		if !p.IsHealthy() && !isLast {
 			msg := fmt.Sprintf("skipping (unhealthy, backoff %v)", p.Backoff)
 			s.Logger.Printf("[%s] %s", p.Name, msg)
-			s.logStructured(p.Name, r.Method, r.URL.Path, 0, LogLevelWarn, msg)
+			s.logStructured(p.Name, r.Method, r.URL.Path, 0, LogLevelInfo, msg)
 			continue
+		}
+
+		if !p.IsHealthy() && isLast {
+			s.Logger.Printf("[%s] last provider, forcing request despite unhealthy (backoff %v)", p.Name, p.Backoff)
 		}
 
 		// Get model override for this specific provider
@@ -141,29 +157,42 @@ func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.Logger.Printf("[%s] trying %s %s", p.Name, r.Method, r.URL.Path)
 		resp, err := s.forwardRequest(r, p, bodyBytes, modelOverride)
 		if err != nil {
+			// Check if client canceled the request - don't mark provider unhealthy
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				msg := fmt.Sprintf("request canceled by client: %v", err)
+				s.Logger.Printf("[%s] %s", p.Name, msg)
+				s.logStructured(p.Name, r.Method, r.URL.Path, 0, LogLevelInfo, msg)
+				// Return immediately - client is gone, no point in failover
+				return
+			}
 			msg := fmt.Sprintf("request error: %v", err)
 			s.Logger.Printf("[%s] %s", p.Name, msg)
 			s.logStructuredError(p.Name, r.Method, r.URL.Path, err)
+			failures = append(failures, providerFailure{Name: p.Name, StatusCode: 0, Body: err.Error()})
 			p.MarkFailed()
 			continue
 		}
 
 		// Auth/account errors → failover with long backoff
 		if resp.StatusCode == 401 || resp.StatusCode == 402 || resp.StatusCode == 403 {
-			msg := fmt.Sprintf("got %d (auth/account error), failing over", resp.StatusCode)
-			s.Logger.Printf("[%s] %s", p.Name, msg)
-			s.logStructured(p.Name, r.Method, r.URL.Path, resp.StatusCode, LogLevelError, msg)
+			errBody, _ := io.ReadAll(resp.Body)
 			resp.Body.Close()
+			msg := fmt.Sprintf("got %d (auth/account error), failing over", resp.StatusCode)
+			s.Logger.Printf("[%s] %s response=%s", p.Name, msg, string(errBody))
+			s.logStructuredWithResponse(p.Name, r.Method, r.URL.Path, resp.StatusCode, msg, errBody)
+			failures = append(failures, providerFailure{Name: p.Name, StatusCode: resp.StatusCode, Body: string(errBody)})
 			p.MarkAuthFailed()
 			continue
 		}
 
 		// Rate limit → failover with short backoff
 		if resp.StatusCode == 429 {
-			msg := fmt.Sprintf("got %d (rate limited), failing over", resp.StatusCode)
-			s.Logger.Printf("[%s] %s", p.Name, msg)
-			s.logStructured(p.Name, r.Method, r.URL.Path, resp.StatusCode, LogLevelError, msg)
+			errBody, _ := io.ReadAll(resp.Body)
 			resp.Body.Close()
+			msg := fmt.Sprintf("got %d (rate limited), failing over", resp.StatusCode)
+			s.Logger.Printf("[%s] %s response=%s", p.Name, msg, string(errBody))
+			s.logStructuredWithResponse(p.Name, r.Method, r.URL.Path, resp.StatusCode, msg, errBody)
+			failures = append(failures, providerFailure{Name: p.Name, StatusCode: resp.StatusCode, Body: string(errBody)})
 			p.MarkFailed()
 			continue
 		}
@@ -176,16 +205,18 @@ func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			if isRequestRelatedError(errBody) {
 				// Request-related error (e.g., context too long) - failover without marking unhealthy
-				msg := fmt.Sprintf("got %d (request-related error), failing over without backoff", resp.StatusCode)
-				s.Logger.Printf("[%s] %s", p.Name, msg)
-				s.logStructured(p.Name, r.Method, r.URL.Path, resp.StatusCode, LogLevelError, msg)
+				msg := fmt.Sprintf("got %d (request-related error), failing over without backoff, request_body_size=%d", resp.StatusCode, len(bodyBytes))
+				s.Logger.Printf("[%s] %s response=%s", p.Name, msg, string(errBody))
+				s.logStructuredWithResponse(p.Name, r.Method, r.URL.Path, resp.StatusCode, msg, errBody)
+				failures = append(failures, providerFailure{Name: p.Name, StatusCode: resp.StatusCode, Body: string(errBody)})
 				continue
 			}
 
 			// Server-side issue - mark as failed with backoff
 			msg := fmt.Sprintf("got %d (server error), failing over", resp.StatusCode)
-			s.Logger.Printf("[%s] %s", p.Name, msg)
-			s.logStructured(p.Name, r.Method, r.URL.Path, resp.StatusCode, LogLevelError, msg)
+			s.Logger.Printf("[%s] %s response=%s", p.Name, msg, string(errBody))
+			s.logStructuredWithResponse(p.Name, r.Method, r.URL.Path, resp.StatusCode, msg, errBody)
+			failures = append(failures, providerFailure{Name: p.Name, StatusCode: resp.StatusCode, Body: string(errBody)})
 			p.MarkFailed()
 			continue
 		}
@@ -202,11 +233,23 @@ func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.Logger.Printf("all providers failed")
-	if s.StructuredLogger != nil {
-		s.StructuredLogger.Error("", "all providers failed")
+	// Build detailed error message with all provider failures
+	var errMsg strings.Builder
+	errMsg.WriteString("all providers failed\n")
+	for _, f := range failures {
+		if f.StatusCode > 0 {
+			errMsg.WriteString(fmt.Sprintf("[%s] %d %s\n", f.Name, f.StatusCode, f.Body))
+		} else {
+			errMsg.WriteString(fmt.Sprintf("[%s] error: %s\n", f.Name, f.Body))
+		}
 	}
-	http.Error(w, "all providers failed", http.StatusBadGateway)
+
+	errStr := errMsg.String()
+	s.Logger.Printf("%s", errStr)
+	if s.StructuredLogger != nil {
+		s.StructuredLogger.Error("", errStr)
+	}
+	http.Error(w, errStr, http.StatusBadGateway)
 }
 
 // logStructured logs to the structured logger if available.
@@ -230,6 +273,14 @@ func (s *ProxyServer) logStructuredError(provider, method, path string, err erro
 		return
 	}
 	s.StructuredLogger.RequestError(provider, method, path, err)
+}
+
+// logStructuredWithResponse logs an error with response body to the structured logger.
+func (s *ProxyServer) logStructuredWithResponse(provider, method, path string, statusCode int, message string, responseBody []byte) {
+	if s.StructuredLogger == nil {
+		return
+	}
+	s.StructuredLogger.RequestErrorWithResponse(provider, method, path, statusCode, message, responseBody)
 }
 
 func (s *ProxyServer) forwardRequest(r *http.Request, p *Provider, body []byte, modelOverride string) (*http.Response, error) {

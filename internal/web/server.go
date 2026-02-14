@@ -159,16 +159,6 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logger := proxy.GetGlobalLogger()
-	if logger == nil {
-		writeJSON(w, http.StatusOK, proxy.LogsResponse{
-			Entries:   []proxy.LogEntry{},
-			Total:     0,
-			Providers: []string{},
-		})
-		return
-	}
-
 	// Parse query parameters
 	query := r.URL.Query()
 	filter := proxy.LogFilter{
@@ -211,8 +201,25 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 		filter.Limit = 100 // default limit
 	}
 
-	entries := logger.GetEntries(filter)
-	providers := logger.GetProviders()
+	// Try in-memory logger first (same process as proxy), fall back to file
+	var entries []proxy.LogEntry
+	var providers []string
+
+	logger := proxy.GetGlobalLogger()
+	if logger != nil && logger.HasEntries() {
+		entries = logger.GetEntries(filter)
+		providers = logger.GetProviders()
+	} else {
+		// Read from JSON log file (web server running in separate process)
+		logDir := config.ConfigDirPath()
+		var err error
+		entries, providers, err = proxy.ReadEntriesFromFile(logDir, filter)
+		if err != nil {
+			s.logger.Printf("Failed to read log file: %v", err)
+			entries = []proxy.LogEntry{}
+			providers = []string{}
+		}
+	}
 
 	writeJSON(w, http.StatusOK, proxy.LogsResponse{
 		Entries:   entries,
