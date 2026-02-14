@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/dopejs/opencc/internal/config"
+	"github.com/dopejs/opencc/internal/proxy/transform"
 )
 
 var (
@@ -62,6 +63,7 @@ type ScenarioProviders struct {
 type ProxyServer struct {
 	Providers        []*Provider
 	Routing          *RoutingConfig // optional; nil means use Providers as-is
+	ClientFormat     string         // API format the client uses ("anthropic" or "openai")
 	Logger           *log.Logger
 	StructuredLogger *StructuredLogger
 	Client           *http.Client
@@ -70,6 +72,7 @@ type ProxyServer struct {
 func NewProxyServer(providers []*Provider, logger *log.Logger) *ProxyServer {
 	return &ProxyServer{
 		Providers:        providers,
+		ClientFormat:     config.ProviderTypeAnthropic, // Default: Claude Code uses Anthropic format
 		Logger:           logger,
 		StructuredLogger: GetGlobalLogger(),
 		Client: &http.Client{
@@ -83,6 +86,23 @@ func NewProxyServerWithRouting(routing *RoutingConfig, logger *log.Logger) *Prox
 	return &ProxyServer{
 		Providers:        routing.DefaultProviders,
 		Routing:          routing,
+		ClientFormat:     config.ProviderTypeAnthropic, // Default: Claude Code uses Anthropic format
+		Logger:           logger,
+		StructuredLogger: GetGlobalLogger(),
+		Client: &http.Client{
+			Timeout: 10 * time.Minute,
+		},
+	}
+}
+
+// NewProxyServerWithClientFormat creates a proxy server with a specific client format.
+func NewProxyServerWithClientFormat(providers []*Provider, clientFormat string, logger *log.Logger) *ProxyServer {
+	if clientFormat == "" {
+		clientFormat = config.ProviderTypeAnthropic
+	}
+	return &ProxyServer{
+		Providers:        providers,
+		ClientFormat:     clientFormat,
 		Logger:           logger,
 		StructuredLogger: GetGlobalLogger(),
 		Client: &http.Client{
@@ -229,7 +249,7 @@ func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Update session cache with token usage from response
 		s.updateSessionCache(sessionID, resp)
 
-		s.copyResponse(w, resp)
+		s.copyResponse(w, resp, p)
 		return
 	}
 
@@ -293,6 +313,19 @@ func (s *ProxyServer) forwardRequest(r *http.Request, p *Provider, body []byte, 
 		modifiedBody = s.applyModelMapping(body, p)
 	}
 
+	// Apply request transformation if needed
+	providerFormat := p.GetType()
+	if transform.NeedsTransform(s.ClientFormat, providerFormat) {
+		transformer := transform.GetTransformer(providerFormat)
+		transformed, err := transformer.TransformRequest(modifiedBody, s.ClientFormat)
+		if err != nil {
+			s.Logger.Printf("[%s] transform request error: %v", p.Name, err)
+		} else {
+			s.Logger.Printf("[%s] transformed request: %s → %s", p.Name, s.ClientFormat, providerFormat)
+			modifiedBody = transformed
+		}
+	}
+
 	targetURL := singleJoiningSlash(p.BaseURL.String(), r.URL.Path)
 	if r.URL.RawQuery != "" {
 		targetURL += "?" + r.URL.RawQuery
@@ -321,18 +354,22 @@ func (s *ProxyServer) forwardRequest(r *http.Request, p *Provider, body []byte, 
 	return s.Client.Do(req)
 }
 
-func (s *ProxyServer) copyResponse(w http.ResponseWriter, resp *http.Response) {
+func (s *ProxyServer) copyResponse(w http.ResponseWriter, resp *http.Response, p *Provider) {
 	defer resp.Body.Close()
 
-	for k, vv := range resp.Header {
-		for _, v := range vv {
-			w.Header().Add(k, v)
-		}
-	}
-	w.WriteHeader(resp.StatusCode)
+	// Check if response transformation is needed
+	providerFormat := p.GetType()
+	needsTransform := transform.NeedsTransform(s.ClientFormat, providerFormat)
 
-	// Stream SSE responses
+	// Stream SSE responses (no transformation for streaming)
 	if strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream") {
+		for k, vv := range resp.Header {
+			for _, v := range vv {
+				w.Header().Add(k, v)
+			}
+		}
+		w.WriteHeader(resp.StatusCode)
+
 		flusher, ok := w.(http.Flusher)
 		buf := make([]byte, 4096)
 		for {
@@ -347,9 +384,40 @@ func (s *ProxyServer) copyResponse(w http.ResponseWriter, resp *http.Response) {
 				break
 			}
 		}
-	} else {
-		io.Copy(w, resp.Body)
+		return
 	}
+
+	// Non-streaming response - can apply transformation
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(w, "failed to read response", http.StatusBadGateway)
+		return
+	}
+
+	// Apply response transformation if needed
+	if needsTransform && len(body) > 0 {
+		transformer := transform.GetTransformer(providerFormat)
+		transformed, err := transformer.TransformResponse(body, s.ClientFormat)
+		if err != nil {
+			s.Logger.Printf("[%s] transform response error: %v", p.Name, err)
+		} else {
+			s.Logger.Printf("[%s] transformed response: %s → %s", p.Name, providerFormat, s.ClientFormat)
+			body = transformed
+		}
+	}
+
+	// Copy headers (except Content-Length which may have changed)
+	for k, vv := range resp.Header {
+		if strings.ToLower(k) == "content-length" {
+			continue
+		}
+		for _, v := range vv {
+			w.Header().Add(k, v)
+		}
+	}
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
+	w.WriteHeader(resp.StatusCode)
+	w.Write(body)
 }
 
 // applyModelOverride replaces the model in the request body with the given override.

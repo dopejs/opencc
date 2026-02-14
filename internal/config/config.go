@@ -16,10 +16,15 @@ const (
 
 	DefaultProfileName = "default"
 	DefaultCLIName     = "claude"
+
+	// Provider API types
+	ProviderTypeAnthropic = "anthropic"
+	ProviderTypeOpenAI    = "openai"
 )
 
 // ProviderConfig holds connection and model settings for a single API provider.
 type ProviderConfig struct {
+	Type           string            `json:"type,omitempty"` // "anthropic" (default) or "openai"
 	BaseURL        string            `json:"base_url"`
 	AuthToken      string            `json:"auth_token"`
 	Model          string            `json:"model,omitempty"`
@@ -28,6 +33,14 @@ type ProviderConfig struct {
 	OpusModel      string            `json:"opus_model,omitempty"`
 	SonnetModel    string            `json:"sonnet_model,omitempty"`
 	EnvVars        map[string]string `json:"env_vars,omitempty"`
+}
+
+// GetType returns the provider type, defaulting to "anthropic".
+func (p *ProviderConfig) GetType() string {
+	if p.Type == "" {
+		return ProviderTypeAnthropic
+	}
+	return p.Type
 }
 
 // ExportToEnv sets all ANTHROPIC_* environment variables from this provider config.

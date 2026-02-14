@@ -192,6 +192,13 @@
           <input type="text" id="pf-name" required autocomplete="off" placeholder="my-provider">
         </div>
         <div class="form-group">
+          <label for="pf-type">API Type</label>
+          <select id="pf-type">
+            <option value="anthropic">Anthropic Messages API</option>
+            <option value="openai">OpenAI Chat Completions API</option>
+          </select>
+        </div>
+        <div class="form-group">
           <label for="pf-base-url">Base URL</label>
           <input type="url" id="pf-base-url" required placeholder="https://api.example.com">
         </div>

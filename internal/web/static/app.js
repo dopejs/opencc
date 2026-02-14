@@ -330,10 +330,11 @@
     }
     var html = '<div class="card-grid">';
     providers.forEach(function(p) {
+      var typeLabel = (p.type === "openai") ? "OpenAI" : "Anthropic";
       html += '<div class="card" data-provider="' + esc(p.name) + '">';
       html += '<div class="card-icon teal">' + ICONS.server + '</div>';
       html += '<div class="card-body">';
-      html += '<div class="card-title">' + esc(p.name) + '</div>';
+      html += '<div class="card-title">' + esc(p.name) + ' <span class="badge badge-muted">' + typeLabel + '</span></div>';
       html += '<div class="card-meta">' + esc(p.base_url);
       if (p.model) html += ' &middot; ' + esc(p.model);
       html += '</div>';
@@ -362,6 +363,7 @@
     document.getElementById("provider-modal-title").textContent = "Add Provider";
     document.getElementById("provider-form").reset();
     document.getElementById("pf-name").disabled = false;
+    document.getElementById("pf-type").value = "anthropic";
     setEnvVars(null); // Clear env vars
     openModal("provider-modal");
   }
@@ -373,6 +375,7 @@
     document.getElementById("provider-modal-title").textContent = "Edit Provider";
     document.getElementById("pf-name").value = name;
     document.getElementById("pf-name").disabled = true;
+    document.getElementById("pf-type").value = p.type || "anthropic";
     document.getElementById("pf-base-url").value = p.base_url || "";
     document.getElementById("pf-token").value = p.auth_token || "";
     document.getElementById("pf-model").value = p.model || "";
@@ -401,6 +404,7 @@
     e.preventDefault();
 
     var cfg = {
+      type: document.getElementById("pf-type").value,
       base_url: document.getElementById("pf-base-url").value.trim(),
       auth_token: document.getElementById("pf-token").value,
       model: document.getElementById("pf-model").value.trim(),

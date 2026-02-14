@@ -241,6 +241,7 @@ func buildProviders(names []string) ([]*proxy.Provider, error) {
 
 		providers = append(providers, &proxy.Provider{
 			Name:           name,
+			Type:           p.GetType(),
 			BaseURL:        u,
 			Token:          p.AuthToken,
 			Model:          model,

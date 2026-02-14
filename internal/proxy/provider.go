@@ -4,6 +4,8 @@ import (
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/dopejs/opencc/internal/config"
 )
 
 const (
@@ -15,6 +17,7 @@ const (
 
 type Provider struct {
 	Name           string
+	Type           string // "anthropic" or "openai"
 	BaseURL        *url.URL
 	Token          string
 	Model          string
@@ -28,6 +31,14 @@ type Provider struct {
 	FailedAt       time.Time
 	Backoff        time.Duration
 	mu             sync.Mutex
+}
+
+// GetType returns the provider type, defaulting to "anthropic".
+func (p *Provider) GetType() string {
+	if p.Type == "" {
+		return config.ProviderTypeAnthropic
+	}
+	return p.Type
 }
 
 func (p *Provider) IsHealthy() bool {

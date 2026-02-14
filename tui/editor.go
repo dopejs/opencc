@@ -14,6 +14,7 @@ type editorField int
 
 const (
 	fieldName editorField = iota
+	fieldType  // API type: anthropic or openai
 	fieldBaseURL
 	fieldAuthToken
 	fieldModel
@@ -37,6 +38,7 @@ type editorModel struct {
 	envVars     map[string]string // custom environment variables
 	envVarsEdit bool              // true = editing env vars
 	envVarsModel envVarsEditorModel
+	providerType int // 0 = anthropic, 1 = openai
 }
 
 func newEditorModel(configName string) editorModel {
@@ -53,6 +55,9 @@ func newEditorModelWithPreset(configName string, presetName string) editorModel 
 
 	fields[fieldName].Placeholder = "config name (e.g. work)"
 	fields[fieldName].Prompt = "  Name:             "
+	// fieldType is handled specially (not a textinput)
+	fields[fieldType].Placeholder = ""
+	fields[fieldType].Prompt = ""
 	fields[fieldBaseURL].Placeholder = "https://api.example.com"
 	fields[fieldBaseURL].Prompt = "  Base URL:         "
 	fields[fieldAuthToken].Placeholder = "sk-..."
@@ -70,9 +75,10 @@ func newEditorModelWithPreset(configName string, presetName string) editorModel 
 	// fieldEnvVars is a special field, not a textinput
 
 	m := editorModel{
-		fields:  fields,
-		editing: configName,
-		envVars: make(map[string]string),
+		fields:       fields,
+		editing:      configName,
+		envVars:      make(map[string]string),
+		providerType: 0, // default to anthropic
 	}
 
 	if configName != "" {
@@ -87,6 +93,10 @@ func newEditorModelWithPreset(configName string, presetName string) editorModel 
 			m.fields[fieldHaikuModel].SetValue(p.HaikuModel)
 			m.fields[fieldOpusModel].SetValue(p.OpusModel)
 			m.fields[fieldSonnetModel].SetValue(p.SonnetModel)
+			// Load provider type
+			if p.GetType() == config.ProviderTypeOpenAI {
+				m.providerType = 1
+			}
 			// Load env vars
 			if p.EnvVars != nil {
 				for k, v := range p.EnvVars {
@@ -95,16 +105,18 @@ func newEditorModelWithPreset(configName string, presetName string) editorModel 
 			}
 		}
 		// Disable name field when editing
-		m.focus = fieldBaseURL
+		m.focus = fieldType
 	} else if presetName != "" {
 		// New provider with pre-filled name — skip to next field
 		m.fields[fieldName].SetValue(presetName)
-		m.focus = fieldBaseURL
+		m.focus = fieldType
 	} else {
 		m.focus = fieldName
 	}
 
-	m.fields[m.focus].Focus()
+	if m.focus != fieldType && m.focus < fieldEnvVars {
+		m.fields[m.focus].Focus()
+	}
 	return m
 }
 
@@ -141,32 +153,29 @@ func (m editorModel) update(msg tea.Msg) (editorModel, tea.Cmd) {
 		case "esc":
 			return m, func() tea.Msg { return switchToListMsg{} }
 		case "tab", "down":
-			if m.focus < fieldEnvVars {
-				m.fields[m.focus].Blur()
-			}
+			m.blurCurrentField()
 			m.focus = (m.focus + 1) % fieldCount
 			if m.editing != "" && m.focus == fieldName {
-				m.focus = fieldBaseURL
+				m.focus = fieldType
 			}
-			if m.focus < fieldEnvVars {
-				m.fields[m.focus].Focus()
-			}
+			m.focusCurrentField()
 			return m, textinput.Blink
 		case "shift+tab", "up":
-			if m.focus < fieldEnvVars {
-				m.fields[m.focus].Blur()
-			}
+			m.blurCurrentField()
 			m.focus = (m.focus - 1 + fieldCount) % fieldCount
 			if m.editing != "" && m.focus == fieldName {
 				m.focus = fieldEnvVars
 			}
-			if m.focus < fieldEnvVars {
-				m.fields[m.focus].Focus()
-			}
+			m.focusCurrentField()
 			return m, textinput.Blink
 		case "ctrl+s", "cmd+s":
 			return m.save()
 		case "enter":
+			if m.focus == fieldType {
+				// Toggle type on enter
+				m.providerType = (m.providerType + 1) % 2
+				return m, nil
+			}
 			if m.focus == fieldEnvVars {
 				// Open env vars editor
 				m.envVarsEdit = true
@@ -178,25 +187,41 @@ func (m editorModel) update(msg tea.Msg) (editorModel, tea.Cmd) {
 				return m.save()
 			}
 			// Enter on non-last field = move to next
-			m.fields[m.focus].Blur()
+			m.blurCurrentField()
 			m.focus = (m.focus + 1) % fieldCount
 			if m.editing != "" && m.focus == fieldName {
-				m.focus = fieldBaseURL
+				m.focus = fieldType
 			}
-			if m.focus < fieldEnvVars {
-				m.fields[m.focus].Focus()
-			}
+			m.focusCurrentField()
 			return m, textinput.Blink
+		case "left", "right":
+			// Toggle type with left/right when focused
+			if m.focus == fieldType {
+				m.providerType = (m.providerType + 1) % 2
+				return m, nil
+			}
 		}
 	}
 
 	// Update focused field (only if it's a textinput field)
-	if m.focus < fieldEnvVars {
+	if m.focus != fieldType && m.focus < fieldEnvVars {
 		var cmd tea.Cmd
 		m.fields[m.focus], cmd = m.fields[m.focus].Update(msg)
 		return m, cmd
 	}
 	return m, nil
+}
+
+func (m *editorModel) blurCurrentField() {
+	if m.focus != fieldType && m.focus < fieldEnvVars {
+		m.fields[m.focus].Blur()
+	}
+}
+
+func (m *editorModel) focusCurrentField() {
+	if m.focus != fieldType && m.focus < fieldEnvVars {
+		m.fields[m.focus].Focus()
+	}
 }
 
 func (m editorModel) save() (editorModel, tea.Cmd) {
@@ -242,7 +267,14 @@ func (m editorModel) save() (editorModel, tea.Cmd) {
 		modelValues[i] = val
 	}
 
+	// Determine provider type
+	providerType := config.ProviderTypeAnthropic
+	if m.providerType == 1 {
+		providerType = config.ProviderTypeOpenAI
+	}
+
 	p := &config.ProviderConfig{
+		Type:           providerType,
 		BaseURL:        baseURL,
 		AuthToken:      token,
 		Model:          modelValues[0],
@@ -309,6 +341,22 @@ func (m editorModel) view(width, height int) string {
 	content.WriteString("\n\n")
 
 	for i := range m.fields {
+		if editorField(i) == fieldType {
+			// Special handling for type field
+			cursor := "  "
+			style := dimStyle
+			if m.focus == fieldType {
+				cursor = "▸ "
+				style = lipgloss.NewStyle().Foreground(accentColor).Bold(true)
+			}
+			typeLabel := "Anthropic Messages API"
+			if m.providerType == 1 {
+				typeLabel = "OpenAI Chat Completions API"
+			}
+			content.WriteString(style.Render(fmt.Sprintf("%sAPI Type:         [%s] (←/→ to change)", cursor, typeLabel)))
+			content.WriteString("\n")
+			continue
+		}
 		if editorField(i) == fieldEnvVars {
 			// Special handling for env vars field
 			cursor := "  "
