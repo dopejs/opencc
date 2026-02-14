@@ -1,0 +1,235 @@
+{
+  "nav": {
+    "home": "Home",
+    "docs": "Docs",
+    "github": "GitHub"
+  },
+  "hero": {
+    "title": "Multi-CLI Environment Switcher",
+    "subtitle": "Unified management for Claude Code, Codex, and OpenCode configurations with API proxy auto-failover",
+    "install": "Install",
+    "getDocs": "Documentation",
+    "copyTip": "Click to copy"
+  },
+  "features": {
+    "title": "Features",
+    "multiCli": {
+      "title": "Multi-CLI Support",
+      "desc": "Support for Claude Code, Codex, and OpenCode with per-project configuration"
+    },
+    "multiConfig": {
+      "title": "Config Management",
+      "desc": "Manage all API provider configs in a unified JSON file"
+    },
+    "failover": {
+      "title": "Proxy Failover",
+      "desc": "Built-in HTTP proxy with automatic failover when primary provider is unavailable"
+    },
+    "routing": {
+      "title": "Scenario Routing",
+      "desc": "Intelligent routing based on request characteristics (thinking, image, etc.)"
+    },
+    "binding": {
+      "title": "Project Bindings",
+      "desc": "Bind directories to specific profiles and CLIs for automatic project-level configuration"
+    },
+    "envVars": {
+      "title": "Environment Variables",
+      "desc": "Configure per-CLI environment variables at the provider level"
+    },
+    "tui": {
+      "title": "TUI Interface",
+      "desc": "Interactive terminal configuration with Dashboard and legacy modes"
+    },
+    "webUi": {
+      "title": "Web Interface",
+      "desc": "Browser-based visual management for providers, profiles, and bindings"
+    },
+    "comingSoon": "More features coming soon, stay tuned!"
+  },
+  "install": {
+    "title": "Quick Start",
+    "step1": {
+      "title": "Install OpenCC",
+      "desc": "One-line install script"
+    },
+    "step2": {
+      "title": "Configure Provider",
+      "desc": "Open the TUI configuration interface"
+    },
+    "step3": {
+      "title": "Launch",
+      "desc": "Start CLI with default configuration"
+    }
+  },
+  "commands": {
+    "title": "Commands",
+    "command": "Command",
+    "description": "Description",
+    "items": {
+      "start": "Start CLI (uses project binding or default config)",
+      "profile": "Start with specified profile",
+      "profilePick": "Interactively select profile",
+      "cli": "Use specified CLI (claude/codex/opencode)",
+      "use": "Use specified provider directly (no proxy)",
+      "pick": "Interactively select provider to start",
+      "list": "List all providers and profiles",
+      "config": "Open TUI configuration interface",
+      "configLegacy": "Use legacy TUI interface",
+      "bind": "Bind current directory to profile",
+      "bindCli": "Bind current directory to specified CLI",
+      "unbind": "Unbind current directory",
+      "status": "Show current directory binding status",
+      "webStart": "Start Web management interface",
+      "webOpen": "Open Web interface in browser",
+      "webStop": "Stop Web server",
+      "upgrade": "Upgrade to latest version",
+      "version": "Show version"
+    }
+  },
+  "footer": {
+    "license": "MIT License",
+    "builtWith": "Built with Go"
+  },
+  "docs": {
+    "sidebar": {
+      "gettingStarted": "Getting Started",
+      "providers": "Providers",
+      "profiles": "Profiles & Failover",
+      "routing": "Scenario Routing",
+      "bindings": "Project Bindings",
+      "multiCli": "Multi-CLI Support",
+      "webUi": "Web Interface",
+      "tui": "TUI Interface",
+      "config": "Config Reference"
+    },
+    "index": {
+      "title": "OpenCC Documentation",
+      "subtitle": "Learn how to install, configure, and use OpenCC to manage your AI coding assistants."
+    },
+    "gettingStarted": {
+      "title": "Getting Started",
+      "installTitle": "Installation",
+      "installDesc": "Install with the one-line script:",
+      "uninstallDesc": "Uninstall:",
+      "firstRunTitle": "First Run",
+      "firstRunStep1": "Open the TUI to create your first provider:",
+      "firstRunStep2": "Start with default profile:",
+      "firstRunStep3": "Start with a specific profile:",
+      "firstRunStep4": "Start with a specific CLI:"
+    },
+    "providers": {
+      "title": "Provider Management",
+      "intro": "A provider represents an API endpoint configuration including base URL, auth token, model name, and more.",
+      "configTitle": "Configuration Example",
+      "envVarsTitle": "Environment Variables",
+      "envVarsDesc": "Each provider can have per-CLI environment variables:",
+      "claudeEnvTitle": "Common Claude Code Environment Variables",
+      "envMaxOutput": "Maximum output tokens",
+      "envMaxThinking": "Extended thinking budget",
+      "envMaxContext": "Maximum context window",
+      "envBashTimeout": "Bash default timeout"
+    },
+    "profiles": {
+      "title": "Profiles & Failover",
+      "intro": "A profile is an ordered list of providers for failover. When the first provider is unavailable, it automatically switches to the next one.",
+      "configTitle": "Configuration Example",
+      "usageTitle": "Using Profiles"
+    },
+    "routing": {
+      "title": "Scenario Routing",
+      "intro": "Automatically route requests to different providers based on request characteristics.",
+      "scenariosTitle": "Supported Scenarios",
+      "scenarios": {
+        "think": "Thinking mode enabled",
+        "image": "Contains image content",
+        "longContext": "Content exceeds threshold",
+        "webSearch": "Uses web_search tool",
+        "background": "Uses Haiku model"
+      },
+      "fallbackTitle": "Fallback Mechanism",
+      "fallbackDesc": "If all providers for a scenario fail, it automatically falls back to the profile's default providers.",
+      "configTitle": "Configuration Example"
+    },
+    "bindings": {
+      "title": "Project Bindings",
+      "intro": "Bind directories to specific profiles and/or CLIs for automatic project-level configuration.",
+      "usageTitle": "Usage",
+      "priorityTitle": "Priority",
+      "priorityDesc": "CLI arguments > Project bindings > Global defaults"
+    },
+    "multiCli": {
+      "title": "Multi-CLI Support",
+      "intro": "OpenCC supports three AI coding assistant CLIs:",
+      "cliTable": {
+        "cli": "CLI",
+        "description": "Description",
+        "format": "API Format",
+        "claude": "Claude Code (default)",
+        "claudeFormat": "Anthropic Messages API",
+        "codex": "OpenAI Codex CLI",
+        "codexFormat": "OpenAI Chat Completions API",
+        "opencode": "OpenCode",
+        "opencodeFormat": "Anthropic / OpenAI"
+      },
+      "defaultTitle": "Set Default CLI",
+      "projectTitle": "Per-Project CLI",
+      "tempTitle": "Temporary CLI Override"
+    },
+    "webUi": {
+      "title": "Web Interface",
+      "intro": "Visually manage all configurations through your browser.",
+      "usageTitle": "Usage",
+      "featuresTitle": "Features",
+      "features": {
+        "providerManage": "Provider and Profile management",
+        "bindingManage": "Project binding management",
+        "settings": "Global settings (default CLI, default Profile, port)",
+        "logs": "Request log viewer",
+        "autocomplete": "Model field autocomplete"
+      }
+    },
+    "tui": {
+      "title": "TUI Interface",
+      "intro": "Interactive terminal configuration interface.",
+      "dashboardTitle": "Dashboard Mode",
+      "dashboardDesc": "v1.5 introduces a new Dashboard interface:",
+      "dashboardFeatures": {
+        "left": "Left panel: Providers, Profiles, Project Bindings",
+        "right": "Right panel: Details of selected item"
+      },
+      "shortcutsTitle": "Keyboard Shortcuts",
+      "shortcuts": {
+        "a": "Add new item",
+        "e": "Edit selected item",
+        "d": "Delete selected item",
+        "tab": "Toggle focus",
+        "q": "Back / Quit"
+      },
+      "legacyTitle": "Legacy Mode"
+    },
+    "configRef": {
+      "title": "Configuration Reference",
+      "fileLocationTitle": "File Locations",
+      "filesTable": {
+        "file": "File",
+        "description": "Description",
+        "mainConfig": "Main configuration file",
+        "proxyLog": "Proxy log",
+        "webLog": "Web server log"
+      },
+      "fullExampleTitle": "Full Configuration Example",
+      "fieldsTitle": "Field Reference",
+      "fields": {
+        "version": "Config file version number",
+        "defaultProfile": "Default profile name",
+        "defaultCli": "Default CLI (claude/codex/opencode)",
+        "webPort": "Web management interface port",
+        "providers": "Provider configuration collection",
+        "profiles": "Profile configuration collection",
+        "projectBindings": "Project binding configuration"
+      }
+    },
+    "copied": "Copied"
+  }
+}

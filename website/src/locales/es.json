@@ -1,0 +1,235 @@
+{
+  "nav": {
+    "home": "Inicio",
+    "docs": "Documentos",
+    "github": "GitHub"
+  },
+  "hero": {
+    "title": "Conmutador de Entornos Multi-CLI",
+    "subtitle": "Gesti\u00f3n unificada de configuraciones de Claude Code, Codex y OpenCode con conmutaci\u00f3n autom\u00e1tica de proxy API",
+    "install": "Instalar",
+    "getDocs": "Documentaci\u00f3n",
+    "copyTip": "Haz clic para copiar"
+  },
+  "features": {
+    "title": "Caracter\u00edsticas",
+    "comingSoon": "M\u00e1s funciones por venir, \u00a1est\u00e9n atentos!",
+    "multiCli": {
+      "title": "Soporte Multi-CLI",
+      "desc": "Soporte para Claude Code, Codex y OpenCode con configuraci\u00f3n por proyecto"
+    },
+    "multiConfig": {
+      "title": "Gesti\u00f3n de Configuraci\u00f3n",
+      "desc": "Gestiona todas las configuraciones de proveedores API en un archivo JSON unificado"
+    },
+    "failover": {
+      "title": "Conmutaci\u00f3n de Proxy",
+      "desc": "Proxy HTTP integrado con conmutaci\u00f3n autom\u00e1tica cuando el proveedor principal no est\u00e1 disponible"
+    },
+    "routing": {
+      "title": "Enrutamiento por Escenario",
+      "desc": "Enrutamiento inteligente basado en caracter\u00edsticas de la solicitud (pensamiento, imagen, etc.)"
+    },
+    "binding": {
+      "title": "Vinculaciones de Proyecto",
+      "desc": "Vincula directorios a perfiles y CLIs espec\u00edficos para configuraci\u00f3n autom\u00e1tica a nivel de proyecto"
+    },
+    "envVars": {
+      "title": "Variables de Entorno",
+      "desc": "Configura variables de entorno por CLI a nivel de proveedor"
+    },
+    "tui": {
+      "title": "Interfaz TUI",
+      "desc": "Configuraci\u00f3n interactiva en terminal con modos Dashboard y cl\u00e1sico"
+    },
+    "webUi": {
+      "title": "Interfaz Web",
+      "desc": "Gesti\u00f3n visual en navegador para proveedores, perfiles y vinculaciones"
+    }
+  },
+  "install": {
+    "title": "Inicio R\u00e1pido",
+    "step1": {
+      "title": "Instalar OpenCC",
+      "desc": "Script de instalaci\u00f3n en una l\u00ednea"
+    },
+    "step2": {
+      "title": "Configurar Proveedor",
+      "desc": "Abrir la interfaz de configuraci\u00f3n TUI"
+    },
+    "step3": {
+      "title": "Iniciar",
+      "desc": "Iniciar CLI con la configuraci\u00f3n predeterminada"
+    }
+  },
+  "commands": {
+    "title": "Comandos",
+    "command": "Comando",
+    "description": "Descripci\u00f3n",
+    "items": {
+      "start": "Iniciar CLI (usa vinculaci\u00f3n de proyecto o config predeterminada)",
+      "profile": "Iniciar con el perfil especificado",
+      "profilePick": "Seleccionar perfil de forma interactiva",
+      "cli": "Usar CLI especificado (claude/codex/opencode)",
+      "use": "Usar proveedor especificado directamente (sin proxy)",
+      "pick": "Seleccionar proveedor de forma interactiva para iniciar",
+      "list": "Listar todos los proveedores y perfiles",
+      "config": "Abrir interfaz de configuraci\u00f3n TUI",
+      "configLegacy": "Usar interfaz TUI cl\u00e1sica",
+      "bind": "Vincular directorio actual a un perfil",
+      "bindCli": "Vincular directorio actual a un CLI especificado",
+      "unbind": "Desvincular directorio actual",
+      "status": "Mostrar estado de vinculaci\u00f3n del directorio actual",
+      "webStart": "Iniciar interfaz de gesti\u00f3n Web",
+      "webOpen": "Abrir interfaz Web en el navegador",
+      "webStop": "Detener servidor Web",
+      "upgrade": "Actualizar a la \u00faltima versi\u00f3n",
+      "version": "Mostrar versi\u00f3n"
+    }
+  },
+  "footer": {
+    "license": "Licencia MIT",
+    "builtWith": "Construido con Go"
+  },
+  "docs": {
+    "sidebar": {
+      "gettingStarted": "Primeros Pasos",
+      "providers": "Proveedores",
+      "profiles": "Perfiles y Conmutaci\u00f3n",
+      "routing": "Enrutamiento por Escenario",
+      "bindings": "Vinculaciones de Proyecto",
+      "multiCli": "Soporte Multi-CLI",
+      "webUi": "Interfaz Web",
+      "tui": "Interfaz TUI",
+      "config": "Referencia de Configuraci\u00f3n"
+    },
+    "index": {
+      "title": "Documentaci\u00f3n de OpenCC",
+      "subtitle": "Aprende a instalar, configurar y usar OpenCC para gestionar tus asistentes de programaci\u00f3n con IA."
+    },
+    "gettingStarted": {
+      "title": "Primeros Pasos",
+      "installTitle": "Instalaci\u00f3n",
+      "installDesc": "Instalar con el script de una l\u00ednea:",
+      "uninstallDesc": "Desinstalar:",
+      "firstRunTitle": "Primera Ejecuci\u00f3n",
+      "firstRunStep1": "Abre la TUI para crear tu primer proveedor:",
+      "firstRunStep2": "Iniciar con el perfil predeterminado:",
+      "firstRunStep3": "Iniciar con un perfil espec\u00edfico:",
+      "firstRunStep4": "Iniciar con un CLI espec\u00edfico:"
+    },
+    "providers": {
+      "title": "Gesti\u00f3n de Proveedores",
+      "intro": "Un proveedor representa una configuraci\u00f3n de endpoint API que incluye URL base, token de autenticaci\u00f3n, nombre de modelo y m\u00e1s.",
+      "configTitle": "Ejemplo de Configuraci\u00f3n",
+      "envVarsTitle": "Variables de Entorno",
+      "envVarsDesc": "Cada proveedor puede tener variables de entorno por CLI:",
+      "claudeEnvTitle": "Variables de Entorno Comunes de Claude Code",
+      "envMaxOutput": "Tokens de salida m\u00e1ximos",
+      "envMaxThinking": "Presupuesto de pensamiento extendido",
+      "envMaxContext": "Ventana de contexto m\u00e1xima",
+      "envBashTimeout": "Tiempo de espera predeterminado de Bash"
+    },
+    "profiles": {
+      "title": "Perfiles y Conmutaci\u00f3n",
+      "intro": "Un perfil es una lista ordenada de proveedores para conmutaci\u00f3n autom\u00e1tica. Cuando el primer proveedor no est\u00e1 disponible, cambia autom\u00e1ticamente al siguiente.",
+      "configTitle": "Ejemplo de Configuraci\u00f3n",
+      "usageTitle": "Uso de Perfiles"
+    },
+    "routing": {
+      "title": "Enrutamiento por Escenario",
+      "intro": "Enruta autom\u00e1ticamente las solicitudes a diferentes proveedores seg\u00fan las caracter\u00edsticas de la solicitud.",
+      "scenariosTitle": "Escenarios Soportados",
+      "scenarios": {
+        "think": "Modo de pensamiento habilitado",
+        "image": "Contiene contenido de imagen",
+        "longContext": "El contenido excede el umbral",
+        "webSearch": "Usa la herramienta web_search",
+        "background": "Usa el modelo Haiku"
+      },
+      "fallbackTitle": "Mecanismo de Respaldo",
+      "fallbackDesc": "Si todos los proveedores de un escenario fallan, se recurre autom\u00e1ticamente a los proveedores predeterminados del perfil.",
+      "configTitle": "Ejemplo de Configuraci\u00f3n"
+    },
+    "bindings": {
+      "title": "Vinculaciones de Proyecto",
+      "intro": "Vincula directorios a perfiles y/o CLIs espec\u00edficos para configuraci\u00f3n autom\u00e1tica a nivel de proyecto.",
+      "usageTitle": "Uso",
+      "priorityTitle": "Prioridad",
+      "priorityDesc": "Argumentos CLI > Vinculaciones de proyecto > Valores predeterminados globales"
+    },
+    "multiCli": {
+      "title": "Soporte Multi-CLI",
+      "intro": "OpenCC soporta tres CLIs de asistentes de programaci\u00f3n con IA:",
+      "cliTable": {
+        "cli": "CLI",
+        "description": "Descripci\u00f3n",
+        "format": "Formato API",
+        "claude": "Claude Code (predeterminado)",
+        "claudeFormat": "API de Mensajes de Anthropic",
+        "codex": "OpenAI Codex CLI",
+        "codexFormat": "API de Completaciones de Chat de OpenAI",
+        "opencode": "OpenCode",
+        "opencodeFormat": "Anthropic / OpenAI"
+      },
+      "defaultTitle": "Establecer CLI Predeterminado",
+      "projectTitle": "CLI por Proyecto",
+      "tempTitle": "Anulaci\u00f3n Temporal de CLI"
+    },
+    "webUi": {
+      "title": "Interfaz Web",
+      "intro": "Gestiona visualmente todas las configuraciones a trav\u00e9s de tu navegador.",
+      "usageTitle": "Uso",
+      "featuresTitle": "Caracter\u00edsticas",
+      "features": {
+        "providerManage": "Gesti\u00f3n de proveedores y perfiles",
+        "bindingManage": "Gesti\u00f3n de vinculaciones de proyecto",
+        "settings": "Configuraci\u00f3n global (CLI predeterminado, perfil predeterminado, puerto)",
+        "logs": "Visor de registros de solicitudes",
+        "autocomplete": "Autocompletado del campo de modelo"
+      }
+    },
+    "tui": {
+      "title": "Interfaz TUI",
+      "intro": "Interfaz de configuraci\u00f3n interactiva en terminal.",
+      "dashboardTitle": "Modo Dashboard",
+      "dashboardDesc": "La v1.5 introduce una nueva interfaz Dashboard:",
+      "dashboardFeatures": {
+        "left": "Panel izquierdo: Proveedores, Perfiles, Vinculaciones de Proyecto",
+        "right": "Panel derecho: Detalles del elemento seleccionado"
+      },
+      "shortcutsTitle": "Atajos de Teclado",
+      "shortcuts": {
+        "a": "A\u00f1adir nuevo elemento",
+        "e": "Editar elemento seleccionado",
+        "d": "Eliminar elemento seleccionado",
+        "tab": "Alternar enfoque",
+        "q": "Atr\u00e1s / Salir"
+      },
+      "legacyTitle": "Modo Cl\u00e1sico"
+    },
+    "configRef": {
+      "title": "Referencia de Configuraci\u00f3n",
+      "fileLocationTitle": "Ubicaci\u00f3n de Archivos",
+      "filesTable": {
+        "file": "Archivo",
+        "description": "Descripci\u00f3n",
+        "mainConfig": "Archivo de configuraci\u00f3n principal",
+        "proxyLog": "Registro del proxy",
+        "webLog": "Registro del servidor Web"
+      },
+      "fullExampleTitle": "Ejemplo de Configuraci\u00f3n Completo",
+      "fieldsTitle": "Referencia de Campos",
+      "fields": {
+        "version": "N\u00famero de versi\u00f3n del archivo de configuraci\u00f3n",
+        "defaultProfile": "Nombre del perfil predeterminado",
+        "defaultCli": "CLI predeterminado (claude/codex/opencode)",
+        "webPort": "Puerto de la interfaz de gesti\u00f3n Web",
+        "providers": "Colecci\u00f3n de configuraciones de proveedores",
+        "profiles": "Colecci\u00f3n de configuraciones de perfiles",
+        "projectBindings": "Configuraci\u00f3n de vinculaciones de proyecto"
+      }
+    },
+    "copied": "Copiado"
+  }
+}

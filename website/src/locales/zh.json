@@ -1,0 +1,235 @@
+{
+  "nav": {
+    "home": "首页",
+    "docs": "文档",
+    "github": "GitHub"
+  },
+  "hero": {
+    "title": "多 CLI 环境切换器",
+    "subtitle": "统一管理 Claude Code、Codex、OpenCode 配置，带 API 代理自动故障转移",
+    "install": "安装",
+    "getDocs": "查看文档",
+    "copyTip": "点击复制"
+  },
+  "features": {
+    "title": "功能特性",
+    "multiCli": {
+      "title": "多 CLI 支持",
+      "desc": "支持 Claude Code、Codex、OpenCode，可按项目配置"
+    },
+    "multiConfig": {
+      "title": "多配置管理",
+      "desc": "在统一的 JSON 文件中管理所有 API provider 配置"
+    },
+    "failover": {
+      "title": "代理故障转移",
+      "desc": "内置 HTTP 代理，主 provider 不可用时自动切换备用"
+    },
+    "routing": {
+      "title": "场景路由",
+      "desc": "根据请求特征（thinking、image 等）智能路由到不同 provider"
+    },
+    "binding": {
+      "title": "项目绑定",
+      "desc": "将目录绑定到特定 profile 和 CLI，实现项目级自动配置"
+    },
+    "envVars": {
+      "title": "环境变量",
+      "desc": "在 provider 级别为每个 CLI 单独配置环境变量"
+    },
+    "tui": {
+      "title": "TUI 界面",
+      "desc": "交互式终端配置界面，支持 Dashboard 和传统两种模式"
+    },
+    "webUi": {
+      "title": "Web 界面",
+      "desc": "浏览器可视化管理 provider、profile 和项目绑定"
+    },
+    "comingSoon": "更多功能，敬请期待"
+  },
+  "install": {
+    "title": "快速开始",
+    "step1": {
+      "title": "安装 OpenCC",
+      "desc": "一键安装脚本"
+    },
+    "step2": {
+      "title": "配置 Provider",
+      "desc": "打开 TUI 配置界面"
+    },
+    "step3": {
+      "title": "启动",
+      "desc": "使用默认配置启动 CLI"
+    }
+  },
+  "commands": {
+    "title": "命令一览",
+    "command": "命令",
+    "description": "说明",
+    "items": {
+      "start": "启动 CLI（使用项目绑定或默认配置）",
+      "profile": "使用指定 profile 启动",
+      "profilePick": "交互选择 profile",
+      "cli": "使用指定 CLI（claude/codex/opencode）",
+      "use": "直接使用指定 provider（无代理）",
+      "pick": "交互选择 provider 启动",
+      "list": "列出所有 provider 和 profile",
+      "config": "打开 TUI 配置界面",
+      "configLegacy": "使用传统 TUI 界面",
+      "bind": "绑定当前目录到 profile",
+      "bindCli": "绑定当前目录使用指定 CLI",
+      "unbind": "解除当前目录绑定",
+      "status": "显示当前目录绑定状态",
+      "webStart": "启动 Web 管理界面",
+      "webOpen": "在浏览器中打开 Web 界面",
+      "webStop": "停止 Web 服务",
+      "upgrade": "升级到最新版本",
+      "version": "显示版本"
+    }
+  },
+  "footer": {
+    "license": "MIT License",
+    "builtWith": "使用 Go 构建"
+  },
+  "docs": {
+    "sidebar": {
+      "gettingStarted": "快速开始",
+      "providers": "Provider 管理",
+      "profiles": "Profile 与故障转移",
+      "routing": "场景路由",
+      "bindings": "项目绑定",
+      "multiCli": "多 CLI 支持",
+      "webUi": "Web 管理界面",
+      "tui": "TUI 界面",
+      "config": "配置参考"
+    },
+    "index": {
+      "title": "OpenCC 文档",
+      "subtitle": "了解如何安装、配置和使用 OpenCC 管理你的 AI 编程助手。"
+    },
+    "gettingStarted": {
+      "title": "快速开始",
+      "installTitle": "安装",
+      "installDesc": "使用安装脚本一键安装：",
+      "uninstallDesc": "卸载：",
+      "firstRunTitle": "首次使用",
+      "firstRunStep1": "打开 TUI 配置界面，创建第一个 provider：",
+      "firstRunStep2": "使用默认 profile 启动：",
+      "firstRunStep3": "使用指定 profile 启动：",
+      "firstRunStep4": "使用指定 CLI 启动："
+    },
+    "providers": {
+      "title": "Provider 管理",
+      "intro": "Provider 代表一个 API 端点配置，包含 Base URL、认证 Token、模型名称等信息。",
+      "configTitle": "配置示例",
+      "envVarsTitle": "环境变量",
+      "envVarsDesc": "每个 provider 可以为不同 CLI 配置独立的环境变量：",
+      "claudeEnvTitle": "Claude Code 常用环境变量",
+      "envMaxOutput": "最大输出 token",
+      "envMaxThinking": "扩展思考预算",
+      "envMaxContext": "最大上下文窗口",
+      "envBashTimeout": "Bash 默认超时"
+    },
+    "profiles": {
+      "title": "Profile 与故障转移",
+      "intro": "Profile 是一组 provider 的有序列表，用于故障转移。当列表中的第一个 provider 不可用时，会自动切换到下一个。",
+      "configTitle": "配置示例",
+      "usageTitle": "使用 Profile"
+    },
+    "routing": {
+      "title": "场景路由",
+      "intro": "根据请求特征自动路由到不同 provider。",
+      "scenariosTitle": "支持的场景",
+      "scenarios": {
+        "think": "启用 thinking 模式",
+        "image": "包含图片内容",
+        "longContext": "内容超过阈值",
+        "webSearch": "使用 web_search 工具",
+        "background": "使用 Haiku 模型"
+      },
+      "fallbackTitle": "Fallback 机制",
+      "fallbackDesc": "如果场景配置的 providers 全部失败，会自动 fallback 到 profile 的默认 providers。",
+      "configTitle": "配置示例"
+    },
+    "bindings": {
+      "title": "项目绑定",
+      "intro": "将目录绑定到特定 profile 和/或 CLI，实现项目级自动配置。",
+      "usageTitle": "使用方法",
+      "priorityTitle": "优先级",
+      "priorityDesc": "命令行参数 > 项目绑定 > 全局默认"
+    },
+    "multiCli": {
+      "title": "多 CLI 支持",
+      "intro": "OpenCC 支持三种 AI 编程助手 CLI：",
+      "cliTable": {
+        "cli": "CLI",
+        "description": "说明",
+        "format": "API 格式",
+        "claude": "Claude Code（默认）",
+        "claudeFormat": "Anthropic Messages API",
+        "codex": "OpenAI Codex CLI",
+        "codexFormat": "OpenAI Chat Completions API",
+        "opencode": "OpenCode",
+        "opencodeFormat": "Anthropic / OpenAI"
+      },
+      "defaultTitle": "设置默认 CLI",
+      "projectTitle": "按项目配置 CLI",
+      "tempTitle": "临时使用其他 CLI"
+    },
+    "webUi": {
+      "title": "Web 管理界面",
+      "intro": "通过浏览器可视化管理所有配置。",
+      "usageTitle": "使用方法",
+      "featuresTitle": "功能",
+      "features": {
+        "providerManage": "Provider 和 Profile 管理",
+        "bindingManage": "项目绑定管理",
+        "settings": "全局设置（默认 CLI、默认 Profile、端口）",
+        "logs": "请求日志查看",
+        "autocomplete": "模型字段自动补全"
+      }
+    },
+    "tui": {
+      "title": "TUI 界面",
+      "intro": "交互式终端配置界面。",
+      "dashboardTitle": "Dashboard 模式",
+      "dashboardDesc": "v1.5 提供全新 Dashboard 界面：",
+      "dashboardFeatures": {
+        "left": "左侧列表：Providers、Profiles、Project Bindings",
+        "right": "右侧详情：选中项的详细信息"
+      },
+      "shortcutsTitle": "快捷键",
+      "shortcuts": {
+        "a": "添加新项",
+        "e": "编辑选中项",
+        "d": "删除选中项",
+        "tab": "切换焦点",
+        "q": "返回/退出"
+      },
+      "legacyTitle": "传统模式"
+    },
+    "configRef": {
+      "title": "配置参考",
+      "fileLocationTitle": "文件位置",
+      "filesTable": {
+        "file": "文件",
+        "description": "说明",
+        "mainConfig": "主配置文件",
+        "proxyLog": "代理日志",
+        "webLog": "Web 服务日志"
+      },
+      "fullExampleTitle": "完整配置示例",
+      "fieldsTitle": "字段说明",
+      "fields": {
+        "version": "配置文件版本号",
+        "defaultProfile": "默认使用的 profile 名称",
+        "defaultCli": "默认使用的 CLI（claude/codex/opencode）",
+        "webPort": "Web 管理界面端口",
+        "providers": "Provider 配置集合",
+        "profiles": "Profile 配置集合",
+        "projectBindings": "项目绑定配置"
+      }
+    },
+    "copied": "已复制"
+  }
+}
