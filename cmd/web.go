@@ -69,6 +69,18 @@ var webEnableCmd = &cobra.Command{
 	},
 }
 
+var webRestartCmd = &cobra.Command{
+	Use:   "restart",
+	Short: "Restart the web daemon",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if _, running := daemon.IsRunning(); !running {
+			fmt.Println("Web server is not running.")
+			return nil
+		}
+		return restartWebDaemon()
+	},
+}
+
 var webDisableCmd = &cobra.Command{
 	Use:   "disable",
 	Short: "Uninstall system service",
@@ -87,6 +99,7 @@ func init() {
 	webCmd.Flags().MarkHidden("port")
 	webCmd.AddCommand(webStopCmd)
 	webCmd.AddCommand(webStatusCmd)
+	webCmd.AddCommand(webRestartCmd)
 	webCmd.AddCommand(webEnableCmd)
 	webCmd.AddCommand(webDisableCmd)
 }
@@ -206,6 +219,44 @@ func startDaemon() error {
 	}
 
 	fmt.Printf("Web server started in background (PID %d) on http://127.0.0.1:%d\n", child.Process.Pid, config.GetWebPort())
+	return nil
+}
+
+// restartWebDaemon stops and restarts the web daemon with a spinner display.
+func restartWebDaemon() error {
+	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	done := make(chan struct{})
+	go func() {
+		i := 0
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				fmt.Fprintf(os.Stderr, "\r  %s Restarting web server...", frames[i%len(frames)])
+				i++
+				time.Sleep(80 * time.Millisecond)
+			}
+		}
+	}()
+
+	var restartErr error
+	if err := daemon.StopDaemon(); err != nil {
+		restartErr = fmt.Errorf("failed to stop web daemon: %w", err)
+	} else {
+		// Brief pause to let the port be released
+		time.Sleep(200 * time.Millisecond)
+		if err := startDaemon(); err != nil {
+			restartErr = fmt.Errorf("failed to start web daemon: %w", err)
+		}
+	}
+
+	close(done)
+	if restartErr != nil {
+		fmt.Fprintf(os.Stderr, "\r  Web server restart failed: %v\n", restartErr)
+		return restartErr
+	}
+	fmt.Fprintf(os.Stderr, "\r  Web server restarted.                \n")
 	return nil
 }
 
