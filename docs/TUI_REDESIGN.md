@@ -651,4 +651,24 @@ type Action struct {
 ---
 
 *Created: 2025-02-14*
-*Status: Draft*
+*Status: Implementation in Progress*
+
+## Implementation Status
+
+- [x] Phase 1: Core Components
+  - [x] `components/list.go` - Generic list with cursor
+  - [x] `components/form.go` - Generic form with fields
+  - [x] `components/keyvalue.go` - Key-value editor
+- [x] Phase 2: Layout
+  - [x] `menu.go` - Main menu
+  - [x] `dashboard.go` - Split-view dashboard
+  - [x] `settings.go` - Global settings
+  - [x] `launch.go` - Launch wizard
+- [x] Phase 3: Integration
+  - [x] Connect existing editors to dashboard
+  - [x] Add `--new` flag to `opencc config`
+  - [x] Settings API and Web UI
+- [ ] Phase 4: Migration
+  - [ ] Make new TUI the default
+  - [ ] Remove old TUI after testing
+
