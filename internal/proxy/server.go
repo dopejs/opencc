@@ -119,10 +119,28 @@ func (s *ProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		// Transient errors → failover with short backoff
-		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
-			s.Logger.Printf("[%s] got %d, failing over", p.Name, resp.StatusCode)
+		// Rate limit → failover with short backoff
+		if resp.StatusCode == 429 {
+			s.Logger.Printf("[%s] got %d (rate limited), failing over", p.Name, resp.StatusCode)
 			resp.Body.Close()
+			p.MarkFailed()
+			continue
+		}
+
+		// Server errors → check if request-related or server-side issue
+		if resp.StatusCode >= 500 {
+			// Read body to check error type
+			errBody, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+
+			if isRequestRelatedError(errBody) {
+				// Request-related error (e.g., context too long) - failover without marking unhealthy
+				s.Logger.Printf("[%s] got %d (request-related error), failing over without backoff", p.Name, resp.StatusCode)
+				continue
+			}
+
+			// Server-side issue - mark as failed with backoff
+			s.Logger.Printf("[%s] got %d (server error), failing over", p.Name, resp.StatusCode)
 			p.MarkFailed()
 			continue
 		}
@@ -341,6 +359,43 @@ func singleJoiningSlash(a, b string) string {
 		return a + "/" + b
 	}
 	return a + b
+}
+
+// isRequestRelatedError checks if a 5xx error is caused by the request itself
+// (e.g., context too long) rather than a server-side issue.
+// These errors should trigger failover but not mark the provider as unhealthy.
+func isRequestRelatedError(body []byte) bool {
+	var errResp struct {
+		Error struct {
+			Type    string `json:"type"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &errResp); err != nil {
+		return false
+	}
+
+	// Check for known request-related error types
+	errType := strings.ToLower(errResp.Error.Type)
+	errMsg := strings.ToLower(errResp.Error.Message)
+
+	// invalid_request_error with context/token related messages
+	if errType == "invalid_request_error" {
+		return true
+	}
+
+	// Check message for context/token length issues
+	contextKeywords := []string{
+		"context", "token", "too long", "too large", "exceeds", "maximum",
+		"limit", "length", "size", "prompt",
+	}
+	for _, kw := range contextKeywords {
+		if strings.Contains(errMsg, kw) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // applyEnvVarsHeaders converts environment variables to HTTP headers.
