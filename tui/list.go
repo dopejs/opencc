@@ -131,6 +131,7 @@ func (m listModel) handleDeleteConfirm(msg tea.KeyMsg) (listModel, tea.Cmd) {
 }
 
 func (m listModel) view(width, height int) string {
+	sidePadding := 2
 	var b strings.Builder
 
 	b.WriteString(titleStyle.Render("  opencc configurations"))
@@ -168,8 +169,6 @@ func (m listModel) view(width, height int) string {
 	b.WriteString("\n")
 	if m.deleting && m.cursor < len(m.configs) {
 		b.WriteString(errorStyle.Render(fmt.Sprintf("  Delete '%s'? (y/n)", m.configs[m.cursor].Name)))
-	} else {
-		b.WriteString(helpStyle.Render("  a:add  e/enter:edit  d:delete  f:fallback profiles  q:quit"))
 	}
 
 	if m.status != "" {
@@ -177,5 +176,26 @@ func (m listModel) view(width, height int) string {
 		b.WriteString(successStyle.Render("  " + m.status))
 	}
 
-	return b.String()
+	// Build view with side padding
+	mainContent := b.String()
+	var view strings.Builder
+	lines := strings.Split(mainContent, "\n")
+	for _, line := range lines {
+		view.WriteString(strings.Repeat(" ", sidePadding))
+		view.WriteString(line)
+		view.WriteString("\n")
+	}
+
+	// Fill remaining space to push help bar to bottom
+	currentLines := len(lines)
+	remainingLines := height - currentLines - 1
+	for i := 0; i < remainingLines; i++ {
+		view.WriteString("\n")
+	}
+
+	// Help bar at bottom
+	helpBar := RenderHelpBar("a add • e/Enter edit • d delete • f fallback profiles • q quit", width)
+	view.WriteString(helpBar)
+
+	return view.String()
 }

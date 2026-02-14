@@ -70,6 +70,10 @@ func (m groupCreateModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m groupCreateModel) View() string {
+	width := 80  // default width
+	height := 24 // default height
+
+	sidePadding := 2
 	var b strings.Builder
 
 	b.WriteString(titleStyle.Render("  Create New Group"))
@@ -79,11 +83,30 @@ func (m groupCreateModel) View() string {
 
 	if m.err != "" {
 		b.WriteString(errorStyle.Render("  " + m.err))
-		b.WriteString("\n")
 	}
-	b.WriteString(helpStyle.Render("  enter:create  esc:cancel"))
 
-	return b.String()
+	// Build view with side padding
+	mainContent := b.String()
+	var view strings.Builder
+	lines := strings.Split(mainContent, "\n")
+	for _, line := range lines {
+		view.WriteString(strings.Repeat(" ", sidePadding))
+		view.WriteString(line)
+		view.WriteString("\n")
+	}
+
+	// Fill remaining space to push help bar to bottom
+	currentLines := len(lines)
+	remainingLines := height - currentLines - 1
+	for i := 0; i < remainingLines; i++ {
+		view.WriteString("\n")
+	}
+
+	// Help bar at bottom
+	helpBar := RenderHelpBar("Enter create • Esc cancel", width)
+	view.WriteString(helpBar)
+
+	return view.String()
 }
 
 // RunGroupCreate runs a standalone group creation TUI.

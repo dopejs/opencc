@@ -24,7 +24,6 @@ type DashboardModel struct {
 	titleStyle  lipgloss.Style
 	labelStyle  lipgloss.Style
 	valueStyle  lipgloss.Style
-	helpStyle   lipgloss.Style
 }
 
 // DashboardBackMsg is sent when user wants to go back to menu.
@@ -51,8 +50,8 @@ func NewDashboardModel() DashboardModel {
 	m := DashboardModel{
 		focusLeft: true,
 		borderStyle: lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("8")),
+			Border(lipgloss.ThickBorder()).
+			BorderForeground(lipgloss.Color("240")),
 		titleStyle: lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("14")),
@@ -60,8 +59,6 @@ func NewDashboardModel() DashboardModel {
 			Foreground(lipgloss.Color("8")),
 		valueStyle: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("15")),
-		helpStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("8")),
 	}
 	m.refreshList()
 	return m
@@ -246,12 +243,16 @@ func (m DashboardModel) Update(msg tea.Msg) (DashboardModel, tea.Cmd) {
 
 // View implements tea.Model.
 func (m DashboardModel) View() string {
-	// Use global layout dimensions
-	contentWidth, contentHeight, leftPadding, topPadding := LayoutDimensions(m.width, m.height)
+	// Layout: 2 padding on each side
+	sidePadding := 2
+	contentWidth := m.width - sidePadding*2
+	if contentWidth < 60 {
+		contentWidth = 60
+	}
 
-	// Left pane takes 35%, right pane takes 65% (detail needs more space)
+	// Left pane takes 35%, right pane takes 65%
 	leftWidth := contentWidth * 35 / 100
-	rightWidth := contentWidth - leftWidth - 2 // -2 for gap between panes
+	rightWidth := contentWidth - leftWidth
 
 	// Minimum widths
 	if leftWidth < 28 {
@@ -261,37 +262,56 @@ func (m DashboardModel) View() string {
 		rightWidth = 40
 	}
 
-	// Pane height (leave room for help bar)
-	paneHeight := contentHeight - 2
+	// Pane height (reserve 1 for help bar)
+	paneHeight := m.height - 1
+	if paneHeight < 10 {
+		paneHeight = 10
+	}
+
+	// Internal width for border and padding
+	leftInternalWidth := leftWidth - 2 - 2 // border + padding
+	rightInternalWidth := rightWidth - 2 - 2
 
 	// Left pane - list
 	leftContent := m.list.View()
 	leftPane := m.borderStyle.
-		Width(leftWidth).
-		Height(paneHeight).
-		Padding(0, 1). // Internal padding
+		Width(leftInternalWidth).
+		Height(paneHeight - 2).
+		Padding(0, 1).
 		Render(leftContent)
 
 	// Right pane - detail
 	rightContent := m.renderDetail()
 	rightPane := m.borderStyle.
-		Width(rightWidth).
-		Height(paneHeight).
-		Padding(0, 1). // Internal padding
+		Width(rightInternalWidth).
+		Height(paneHeight - 2).
+		Padding(0, 1).
 		Render(rightContent)
 
-	// Join panes with gap
-	content := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, "  ", rightPane)
+	// Join panes
+	mainContent := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
 
-	// Help bar
-	help := m.helpStyle.Render("[a]dd [e]dit [d]elete [Tab] switch pane [Esc] back")
+	// Build view with side padding
+	var view strings.Builder
+	lines := strings.Split(mainContent, "\n")
+	for _, line := range lines {
+		view.WriteString(strings.Repeat(" ", sidePadding))
+		view.WriteString(line)
+		view.WriteString("\n")
+	}
 
-	// Apply outer padding for centering
-	paddingStyle := lipgloss.NewStyle().
-		PaddingLeft(leftPadding).
-		PaddingTop(topPadding)
+	// Fill remaining space
+	currentLines := len(lines)
+	remainingLines := m.height - currentLines - 1
+	for i := 0; i < remainingLines; i++ {
+		view.WriteString("\n")
+	}
 
-	return paddingStyle.Render(content + "\n\n" + help)
+	// Help bar at bottom
+	helpBar := RenderHelpBar("a add • e edit • d delete • Tab switch pane • Esc back", m.width)
+	view.WriteString(helpBar)
+
+	return view.String()
 }
 
 func (m DashboardModel) renderDetail() string {

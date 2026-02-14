@@ -191,6 +191,10 @@ type configEditProviderMsg struct{ name string }
 type configEditGroupMsg struct{ name string }
 
 func (m configMainModel) View() string {
+	width := 80  // default width
+	height := 24 // default height
+
+	sidePadding := 2
 	var b strings.Builder
 
 	// Header
@@ -206,7 +210,7 @@ func (m configMainModel) View() string {
 	// Providers section
 	providerContent := m.renderProviders()
 	providerBox := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.ThickBorder()).
 		BorderForeground(borderColor).
 		Padding(0, 1).
 		Width(50).
@@ -217,7 +221,7 @@ func (m configMainModel) View() string {
 	// Groups section
 	groupContent := m.renderGroups()
 	groupBox := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.ThickBorder()).
 		BorderForeground(borderColor).
 		Padding(0, 1).
 		Width(50).
@@ -234,7 +238,7 @@ func (m configMainModel) View() string {
 			name = m.groups[m.cursor].name
 		}
 		confirmBox := lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
+			Border(lipgloss.ThickBorder()).
 			BorderForeground(errorColor).
 			Padding(0, 1).
 			Render(errorStyle.Render(fmt.Sprintf(" Delete '%s'? (y/n) ", name)))
@@ -242,13 +246,31 @@ func (m configMainModel) View() string {
 	} else {
 		if m.status != "" {
 			b.WriteString(errorStyle.Render("  " + m.status))
-			b.WriteString("\n")
 		}
-		help := helpStyle.Render("  ↑↓ navigate • enter edit • a add • d delete • q quit")
-		b.WriteString(help)
 	}
 
-	return b.String()
+	// Build view with side padding
+	mainContent := b.String()
+	var view strings.Builder
+	lines := strings.Split(mainContent, "\n")
+	for _, line := range lines {
+		view.WriteString(strings.Repeat(" ", sidePadding))
+		view.WriteString(line)
+		view.WriteString("\n")
+	}
+
+	// Fill remaining space to push help bar to bottom
+	currentLines := len(lines)
+	remainingLines := height - currentLines - 1
+	for i := 0; i < remainingLines; i++ {
+		view.WriteString("\n")
+	}
+
+	// Help bar at bottom
+	helpBar := RenderHelpBar("↑↓ navigate • Enter edit • a add • d delete • q quit", width)
+	view.WriteString(helpBar)
+
+	return view.String()
 }
 
 func (m configMainModel) renderProviders() string {
@@ -639,6 +661,10 @@ func (s *addTypeSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 type configAddGroupMsg struct{}
 
 func (s *addTypeSelector) View() string {
+	width := 80  // default width
+	height := 24 // default height
+
+	sidePadding := 2
 	var b strings.Builder
 	b.WriteString(titleStyle.Render("  Add"))
 	b.WriteString("\n\n")
@@ -652,9 +678,29 @@ func (s *addTypeSelector) View() string {
 		b.WriteString(style.Render(cursor + item))
 		b.WriteString("\n")
 	}
-	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("  enter:select  esc:back"))
-	return b.String()
+
+	// Build view with side padding
+	mainContent := b.String()
+	var view strings.Builder
+	lines := strings.Split(mainContent, "\n")
+	for _, line := range lines {
+		view.WriteString(strings.Repeat(" ", sidePadding))
+		view.WriteString(line)
+		view.WriteString("\n")
+	}
+
+	// Fill remaining space to push help bar to bottom
+	currentLines := len(lines)
+	remainingLines := height - currentLines - 1
+	for i := 0; i < remainingLines; i++ {
+		view.WriteString("\n")
+	}
+
+	// Help bar at bottom
+	helpBar := RenderHelpBar("Enter select • Esc back", width)
+	view.WriteString(helpBar)
+
+	return view.String()
 }
 
 // RunConfigMain runs the main config TUI.

@@ -269,7 +269,8 @@ func RunEditProfile(profile string) error {
 
 func (m fallbackModel) view(width, height int) string {
 	// Use global layout dimensions
-	contentWidth, _, leftPadding, topPadding := LayoutDimensions(width, height)
+	contentWidth, _, _, _ := LayoutDimensions(width, height)
+	sidePadding := 2
 
 	var b strings.Builder
 
@@ -383,7 +384,7 @@ func (m fallbackModel) view(width, height int) string {
 	}
 
 	contentBox := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.ThickBorder()).
 		BorderForeground(borderColor).
 		Padding(0, 1).
 		Width(boxWidth).
@@ -399,13 +400,28 @@ func (m fallbackModel) view(width, height int) string {
 			b.WriteString(errorStyle.Render("  ✗ " + m.status))
 			b.WriteString("\n")
 		}
-		b.WriteString(helpStyle.Render("  tab switch section • s save • esc back"))
 	}
 
-	// Apply padding
-	paddingStyle := lipgloss.NewStyle().
-		PaddingLeft(leftPadding).
-		PaddingTop(topPadding)
+	// Build view with side padding
+	mainContent := b.String()
+	var view strings.Builder
+	lines := strings.Split(mainContent, "\n")
+	for _, line := range lines {
+		view.WriteString(strings.Repeat(" ", sidePadding))
+		view.WriteString(line)
+		view.WriteString("\n")
+	}
 
-	return paddingStyle.Render(b.String())
+	// Fill remaining space to push help bar to bottom
+	currentLines := len(lines)
+	remainingLines := height - currentLines - 1
+	for i := 0; i < remainingLines; i++ {
+		view.WriteString("\n")
+	}
+
+	// Help bar at bottom
+	helpBar := RenderHelpBar("Tab switch section • s save • Esc back", width)
+	view.WriteString(helpBar)
+
+	return view.String()
 }

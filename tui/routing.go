@@ -340,7 +340,8 @@ func removeFromScenarioOrder(order []string, name string) []string {
 
 func (m routingModel) view(width, height int) string {
 	// Use global layout dimensions
-	contentWidth, _, leftPadding, topPadding := LayoutDimensions(width, height)
+	contentWidth, _, _, _ := LayoutDimensions(width, height)
+	sidePadding := 2
 
 	var b strings.Builder
 
@@ -372,17 +373,36 @@ func (m routingModel) view(width, height int) string {
 			b.WriteString(successStyle.Render("  ✓ " + m.status))
 			b.WriteString("\n")
 		}
-		if m.phase == 0 {
-			b.WriteString(helpStyle.Render("  ↑↓ move • enter edit • x clear • s save • esc back"))
-		}
 	}
 
-	// Apply padding
-	paddingStyle := lipgloss.NewStyle().
-		PaddingLeft(leftPadding).
-		PaddingTop(topPadding)
+	// Build view with side padding
+	mainContent := b.String()
+	var view strings.Builder
+	lines := strings.Split(mainContent, "\n")
+	for _, line := range lines {
+		view.WriteString(strings.Repeat(" ", sidePadding))
+		view.WriteString(line)
+		view.WriteString("\n")
+	}
 
-	return paddingStyle.Render(b.String())
+	// Fill remaining space to push help bar to bottom
+	currentLines := len(lines)
+	remainingLines := height - currentLines - 1
+	for i := 0; i < remainingLines; i++ {
+		view.WriteString("\n")
+	}
+
+	// Help bar at bottom
+	var helpText string
+	if m.phase == 0 {
+		helpText = "↑↓ move • Enter edit • x clear • s save • Esc back"
+	} else {
+		helpText = "Space toggle • m edit model • Enter save • Esc back"
+	}
+	helpBar := RenderHelpBar(helpText, width)
+	view.WriteString(helpBar)
+
+	return view.String()
 }
 
 func (m routingModel) renderScenarioList(contentWidth int) string {
@@ -423,7 +443,7 @@ func (m routingModel) renderScenarioList(contentWidth int) string {
 	}
 
 	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.ThickBorder()).
 		BorderForeground(borderColor).
 		Padding(0, 1).
 		Width(boxWidth).
@@ -502,7 +522,7 @@ func (m routingModel) renderScenarioEdit(contentWidth int) string {
 	}
 
 	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.ThickBorder()).
 		BorderForeground(borderColor).
 		Padding(0, 1).
 		Width(boxWidth).
@@ -653,7 +673,10 @@ func (w *scenarioEditWrapper) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (w *scenarioEditWrapper) View() string {
 	// Use default dimensions for standalone wrapper
-	contentWidth, _, leftPadding, topPadding := LayoutDimensions(120, 40)
+	contentWidth, _, _, _ := LayoutDimensions(120, 40)
+	sidePadding := 2
+	width := 120
+	height := 40
 
 	boxWidth := contentWidth * 65 / 100
 	if boxWidth < 60 {
@@ -679,9 +702,6 @@ func (w *scenarioEditWrapper) View() string {
 	var content strings.Builder
 
 	if w.edit.phase == 0 {
-		content.WriteString(dimStyle.Render(" Space toggle • m edit model • enter save • esc back"))
-		content.WriteString("\n\n")
-
 		for i, name := range w.edit.allProviders {
 			cursor := "  "
 			style := tableRowStyle
@@ -731,7 +751,7 @@ func (w *scenarioEditWrapper) View() string {
 	}
 
 	contentBox := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.ThickBorder()).
 		BorderForeground(borderColor).
 		Padding(0, 1).
 		Width(boxWidth).
@@ -739,10 +759,32 @@ func (w *scenarioEditWrapper) View() string {
 
 	b.WriteString(contentBox)
 
-	// Apply padding
-	paddingStyle := lipgloss.NewStyle().
-		PaddingLeft(leftPadding).
-		PaddingTop(topPadding)
+	// Build view with side padding
+	mainContent := b.String()
+	var view strings.Builder
+	lines := strings.Split(mainContent, "\n")
+	for _, line := range lines {
+		view.WriteString(strings.Repeat(" ", sidePadding))
+		view.WriteString(line)
+		view.WriteString("\n")
+	}
 
-	return paddingStyle.Render(b.String())
+	// Fill remaining space to push help bar to bottom
+	currentLines := len(lines)
+	remainingLines := height - currentLines - 1
+	for i := 0; i < remainingLines; i++ {
+		view.WriteString("\n")
+	}
+
+	// Help bar at bottom
+	var helpText string
+	if w.edit.phase == 0 {
+		helpText = "Space toggle • m edit model • Enter save • Esc back"
+	} else {
+		helpText = "Enter save • Esc cancel"
+	}
+	helpBar := RenderHelpBar(helpText, width)
+	view.WriteString(helpBar)
+
+	return view.String()
 }

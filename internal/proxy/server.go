@@ -638,8 +638,8 @@ func (s *ProxyServer) applyEnvVarsHeaders(req *http.Request, envVars map[string]
 }
 
 // StartProxy starts the proxy server and returns the port.
-func StartProxy(providers []*Provider, listenAddr string, logger *log.Logger) (int, error) {
-	srv := NewProxyServer(providers, logger)
+func StartProxy(providers []*Provider, clientFormat string, listenAddr string, logger *log.Logger) (int, error) {
+	srv := NewProxyServerWithClientFormat(providers, clientFormat, logger)
 
 	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
@@ -654,8 +654,12 @@ func StartProxy(providers []*Provider, listenAddr string, logger *log.Logger) (i
 }
 
 // StartProxyWithRouting starts the proxy server with scenario-based routing.
-func StartProxyWithRouting(routing *RoutingConfig, listenAddr string, logger *log.Logger) (int, error) {
+func StartProxyWithRouting(routing *RoutingConfig, clientFormat string, listenAddr string, logger *log.Logger) (int, error) {
 	srv := NewProxyServerWithRouting(routing, logger)
+	srv.ClientFormat = clientFormat
+	if srv.ClientFormat == "" {
+		srv.ClientFormat = config.ProviderTypeAnthropic
+	}
 
 	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {

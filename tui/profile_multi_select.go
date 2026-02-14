@@ -68,6 +68,10 @@ func (m profileMultiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m profileMultiSelectModel) View() string {
+	width := 80  // default width
+	height := 24 // default height
+
+	sidePadding := 2
 	var b strings.Builder
 
 	// Header
@@ -111,17 +115,35 @@ func (m profileMultiSelectModel) View() string {
 	}
 
 	contentBox := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.ThickBorder()).
 		BorderForeground(borderColor).
 		Padding(0, 1).
 		Width(40).
 		Render(content.String())
 	b.WriteString(contentBox)
 
-	b.WriteString("\n\n")
-	b.WriteString(helpStyle.Render("  space toggle • enter confirm • esc skip"))
+	// Build view with side padding
+	mainContent := b.String()
+	var view strings.Builder
+	lines := strings.Split(mainContent, "\n")
+	for _, line := range lines {
+		view.WriteString(strings.Repeat(" ", sidePadding))
+		view.WriteString(line)
+		view.WriteString("\n")
+	}
 
-	return b.String()
+	// Fill remaining space to push help bar to bottom
+	currentLines := len(lines)
+	remainingLines := height - currentLines - 1
+	for i := 0; i < remainingLines; i++ {
+		view.WriteString("\n")
+	}
+
+	// Help bar at bottom
+	helpBar := RenderHelpBar("Space toggle • Enter confirm • Esc skip", width)
+	view.WriteString(helpBar)
+
+	return view.String()
 }
 
 // Result returns the selected profile names.

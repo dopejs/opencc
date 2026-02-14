@@ -51,6 +51,10 @@ func (m profilePickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m profilePickerModel) View() string {
+	width := 80  // default width
+	height := 24 // default height
+
+	sidePadding := 2
 	var b strings.Builder
 
 	b.WriteString(titleStyle.Render("  Select provider group:"))
@@ -71,8 +75,26 @@ func (m profilePickerModel) View() string {
 		}
 	}
 
-	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("  enter:select  q:cancel"))
+	// Build view with side padding
+	mainContent := b.String()
+	var view strings.Builder
+	lines := strings.Split(mainContent, "\n")
+	for _, line := range lines {
+		view.WriteString(strings.Repeat(" ", sidePadding))
+		view.WriteString(line)
+		view.WriteString("\n")
+	}
 
-	return b.String()
+	// Fill remaining space to push help bar to bottom
+	currentLines := len(lines)
+	remainingLines := height - currentLines - 1
+	for i := 0; i < remainingLines; i++ {
+		view.WriteString("\n")
+	}
+
+	// Help bar at bottom
+	helpBar := RenderHelpBar("Enter select • q cancel", width)
+	view.WriteString(helpBar)
+
+	return view.String()
 }

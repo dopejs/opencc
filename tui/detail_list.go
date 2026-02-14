@@ -219,6 +219,10 @@ func (m detailListModel) View() string {
 }
 
 func (m detailListModel) viewList() string {
+	width := 80  // default width
+	height := 24 // default height
+
+	sidePadding := 2
 	var b strings.Builder
 
 	// Header
@@ -235,7 +239,7 @@ func (m detailListModel) viewList() string {
 	if m.mode == listViewAll || m.mode == listViewProviders {
 		providerContent := m.renderProviderList()
 		providerBox := lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
+			Border(lipgloss.ThickBorder()).
 			BorderForeground(borderColor).
 			Padding(0, 1).
 			Render(providerContent)
@@ -250,17 +254,35 @@ func (m detailListModel) viewList() string {
 		}
 		groupContent := m.renderGroupList()
 		groupBox := lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
+			Border(lipgloss.ThickBorder()).
 			BorderForeground(borderColor).
 			Padding(0, 1).
 			Render(groupContent)
 		b.WriteString(groupBox)
 	}
 
-	b.WriteString("\n\n")
-	b.WriteString(helpStyle.Render("  ↑↓ navigate • enter detail • q quit"))
+	// Build view with side padding
+	mainContent := b.String()
+	var view strings.Builder
+	lines := strings.Split(mainContent, "\n")
+	for _, line := range lines {
+		view.WriteString(strings.Repeat(" ", sidePadding))
+		view.WriteString(line)
+		view.WriteString("\n")
+	}
 
-	return b.String()
+	// Fill remaining space to push help bar to bottom
+	currentLines := len(lines)
+	remainingLines := height - currentLines - 1
+	for i := 0; i < remainingLines; i++ {
+		view.WriteString("\n")
+	}
+
+	// Help bar at bottom
+	helpBar := RenderHelpBar("↑↓ navigate • Enter detail • q quit", width)
+	view.WriteString(helpBar)
+
+	return view.String()
 }
 
 func (m detailListModel) renderProviderList() string {
@@ -358,6 +380,10 @@ func (m detailListModel) renderGroupList() string {
 }
 
 func (m detailListModel) viewDetail() string {
+	width := 80  // default width
+	height := 24 // default height
+
+	sidePadding := 2
 	var b strings.Builder
 
 	// Header
@@ -372,16 +398,34 @@ func (m detailListModel) viewDetail() string {
 
 	// Detail box
 	detailBox := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.ThickBorder()).
 		BorderForeground(borderColor).
 		Padding(1, 2).
 		Render(m.detailContent)
 	b.WriteString(detailBox)
 
-	b.WriteString("\n\n")
-	b.WriteString(helpStyle.Render("  esc/enter back • q quit"))
+	// Build view with side padding
+	mainContent := b.String()
+	var view strings.Builder
+	lines := strings.Split(mainContent, "\n")
+	for _, line := range lines {
+		view.WriteString(strings.Repeat(" ", sidePadding))
+		view.WriteString(line)
+		view.WriteString("\n")
+	}
 
-	return b.String()
+	// Fill remaining space to push help bar to bottom
+	currentLines := len(lines)
+	remainingLines := height - currentLines - 1
+	for i := 0; i < remainingLines; i++ {
+		view.WriteString("\n")
+	}
+
+	// Help bar at bottom
+	helpBar := RenderHelpBar("Esc/Enter back • q quit", width)
+	view.WriteString(helpBar)
+
+	return view.String()
 }
 
 // RunDetailList runs the detail list TUI.

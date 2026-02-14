@@ -1,12 +1,7 @@
 package tui
 
 import (
-	"fmt"
-	"os/exec"
-	"runtime"
-
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/dopejs/opencc/internal/config"
 )
 
 // AppScreen represents the current screen in the new TUI.
@@ -92,12 +87,6 @@ func (m NewAppModel) updateMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.screen = ScreenSettings
 			m.settings.Refresh()
 			return m, m.settings.Init()
-		case MenuWebUI:
-			// Open web UI in browser
-			port := config.GetWebPort()
-			url := fmt.Sprintf("http://127.0.0.1:%d", port)
-			openBrowser(url)
-			return m, nil
 		case MenuQuit:
 			return m, tea.Quit
 		}
@@ -214,17 +203,6 @@ func (m NewAppModel) View() string {
 		return m.launch.View()
 	}
 	return ""
-}
-
-func openBrowser(url string) {
-	switch runtime.GOOS {
-	case "darwin":
-		exec.Command("open", url).Start()
-	case "linux":
-		exec.Command("xdg-open", url).Start()
-	case "windows":
-		exec.Command("cmd", "/c", "start", url).Start()
-	}
 }
 
 // LaunchResult holds the result of the launch wizard.

@@ -16,7 +16,6 @@ const (
 	MenuLaunch MenuAction = iota
 	MenuConfigure
 	MenuSettings
-	MenuWebUI
 	MenuQuit
 )
 
@@ -49,7 +48,6 @@ func NewMenuModel() MenuModel {
 			{label: "Launch", action: MenuLaunch},
 			{label: "Configure", action: MenuConfigure},
 			{label: "Settings", action: MenuSettings},
-			{label: "Web UI", action: MenuWebUI},
 			{label: "Quit", action: MenuQuit},
 		},
 		profile: config.GetDefaultProfile(),
@@ -112,9 +110,6 @@ func (m MenuModel) Update(msg tea.Msg) (MenuModel, tea.Cmd) {
 		case "3":
 			m.cursor = 2
 			return m, func() tea.Msg { return MenuSelectedMsg{Action: MenuSettings} }
-		case "4":
-			m.cursor = 3
-			return m, func() tea.Msg { return MenuSelectedMsg{Action: MenuWebUI} }
 		}
 	}
 	return m, nil

@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -21,7 +22,6 @@ type SettingsModel struct {
 
 	// Styles
 	titleStyle  lipgloss.Style
-	helpStyle   lipgloss.Style
 	statusStyle lipgloss.Style
 }
 
@@ -71,9 +71,6 @@ func NewSettingsModel() SettingsModel {
 			Bold(true).
 			Foreground(lipgloss.Color("14")).
 			MarginBottom(1),
-		helpStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("8")).
-			MarginTop(1),
 		statusStyle: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("10")),
 	}
@@ -148,7 +145,8 @@ func (m SettingsModel) save() tea.Cmd {
 // View implements tea.Model.
 func (m SettingsModel) View() string {
 	// Use global layout dimensions
-	contentWidth, _, leftPadding, topPadding := LayoutDimensions(m.width, m.height)
+	contentWidth, _, _, _ := LayoutDimensions(m.width, m.height)
+	sidePadding := 2
 
 	title := m.titleStyle.Render("Settings")
 
@@ -164,13 +162,11 @@ func (m SettingsModel) View() string {
 	}
 
 	formBox := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("8")).
+		Border(lipgloss.ThickBorder()).
+		BorderForeground(lipgloss.Color("240")).
 		Width(formWidth).
 		Padding(1, 2).
 		Render(formView)
-
-	help := m.helpStyle.Render("[Tab] next  [Shift+Tab] prev  [Ctrl+S] save  [Esc] back")
 
 	var status string
 	if m.saved {
@@ -180,17 +176,32 @@ func (m SettingsModel) View() string {
 		status = lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render("Error: " + m.err)
 	}
 
-	content := fmt.Sprintf("%s\n\n%s\n\n%s", title, formBox, help)
+	mainContent := fmt.Sprintf("%s\n\n%s", title, formBox)
 	if status != "" {
-		content += "\n" + status
+		mainContent += "\n\n" + status
 	}
 
-	// Apply padding
-	paddingStyle := lipgloss.NewStyle().
-		PaddingLeft(leftPadding).
-		PaddingTop(topPadding)
+	// Build view with side padding
+	var view strings.Builder
+	lines := strings.Split(mainContent, "\n")
+	for _, line := range lines {
+		view.WriteString(strings.Repeat(" ", sidePadding))
+		view.WriteString(line)
+		view.WriteString("\n")
+	}
 
-	return paddingStyle.Render(content)
+	// Fill remaining space to push help bar to bottom
+	currentLines := len(lines)
+	remainingLines := m.height - currentLines - 1
+	for i := 0; i < remainingLines; i++ {
+		view.WriteString("\n")
+	}
+
+	// Help bar at bottom
+	helpBar := RenderHelpBar("Tab next • Shift+Tab prev • Ctrl+S save • Esc back", m.width)
+	view.WriteString(helpBar)
+
+	return view.String()
 }
 
 // Refresh reloads settings from config.

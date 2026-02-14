@@ -143,6 +143,7 @@ func (m profileListModel) handleCreate(msg tea.KeyMsg) (profileListModel, tea.Cm
 }
 
 func (m profileListModel) view(width, height int) string {
+	sidePadding := 2
 	var b strings.Builder
 
 	b.WriteString(titleStyle.Render("  Groups"))
@@ -168,17 +169,40 @@ func (m profileListModel) view(width, height int) string {
 	b.WriteString("\n")
 	if m.creating {
 		b.WriteString(m.nameInput.View())
-		b.WriteString("\n")
-		b.WriteString(helpStyle.Render("  enter:create  esc:cancel"))
 	} else if m.deleting && m.cursor < len(m.profiles) {
 		b.WriteString(errorStyle.Render(fmt.Sprintf("  Delete group '%s'? (y/n)", m.profiles[m.cursor].name)))
 	} else {
 		if m.status != "" {
 			b.WriteString(errorStyle.Render("  " + m.status))
-			b.WriteString("\n")
 		}
-		b.WriteString(helpStyle.Render("  enter:edit  a:new  d:delete  esc:back"))
 	}
 
-	return b.String()
+	// Build view with side padding
+	mainContent := b.String()
+	var view strings.Builder
+	lines := strings.Split(mainContent, "\n")
+	for _, line := range lines {
+		view.WriteString(strings.Repeat(" ", sidePadding))
+		view.WriteString(line)
+		view.WriteString("\n")
+	}
+
+	// Fill remaining space to push help bar to bottom
+	currentLines := len(lines)
+	remainingLines := height - currentLines - 1
+	for i := 0; i < remainingLines; i++ {
+		view.WriteString("\n")
+	}
+
+	// Help bar at bottom
+	var helpText string
+	if m.creating {
+		helpText = "Enter create • Esc cancel"
+	} else {
+		helpText = "Enter edit • a new • d delete • Esc back"
+	}
+	helpBar := RenderHelpBar(helpText, width)
+	view.WriteString(helpBar)
+
+	return view.String()
 }

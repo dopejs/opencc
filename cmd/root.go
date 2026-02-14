@@ -200,6 +200,16 @@ func startProxy(names []string, pc *config.ProfileConfig, cli string, args []str
 		logger.Printf("  [%d] %s → %s (model=%s)", i+1, p.Name, p.BaseURL.String(), p.Model)
 	}
 
+	// Use CLI from parameter (already resolved from flag/binding/default)
+	cliBin := cli
+	if cliBin == "" {
+		cliBin = "claude"
+	}
+
+	// Determine client format based on CLI type
+	clientFormat := GetCLIClientFormat(GetCLIType(cliBin))
+	logger.Printf("CLI: %s, Client format: %s", cliBin, clientFormat)
+
 	// Start proxy — with routing if configured, otherwise plain
 	var port int
 	if pc != nil && len(pc.Routing) > 0 {
@@ -207,24 +217,18 @@ func startProxy(names []string, pc *config.ProfileConfig, cli string, args []str
 		if err != nil {
 			return fmt.Errorf("failed to build routing config: %w", err)
 		}
-		port, err = proxy.StartProxyWithRouting(routingCfg, "127.0.0.1:0", logger)
+		port, err = proxy.StartProxyWithRouting(routingCfg, clientFormat, "127.0.0.1:0", logger)
 		if err != nil {
 			return fmt.Errorf("failed to start proxy: %w", err)
 		}
 	} else {
-		port, err = proxy.StartProxy(providers, "127.0.0.1:0", logger)
+		port, err = proxy.StartProxy(providers, clientFormat, "127.0.0.1:0", logger)
 		if err != nil {
 			return fmt.Errorf("failed to start proxy: %w", err)
 		}
 	}
 
 	logger.Printf("Proxy listening on 127.0.0.1:%d", port)
-
-	// Use CLI from parameter (already resolved from flag/binding/default)
-	cliBin := cli
-	if cliBin == "" {
-		cliBin = "claude"
-	}
 
 	// Merge env_vars from all providers for this specific CLI
 	// For numeric values like ANTHROPIC_MAX_CONTEXT_WINDOW, use the minimum value

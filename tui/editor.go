@@ -377,7 +377,8 @@ func (m editorModel) view(width, height int) string {
 	}
 
 	// Use global layout dimensions
-	contentWidth, _, leftPadding, topPadding := LayoutDimensions(width, height)
+	contentWidth, _, _, _ := LayoutDimensions(width, height)
+	sidePadding := 2
 
 	var b strings.Builder
 
@@ -470,7 +471,7 @@ func (m editorModel) view(width, height int) string {
 	}
 
 	formBox := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.ThickBorder()).
 		BorderForeground(borderColor).
 		Width(formWidth).
 		Padding(0, 1).
@@ -485,18 +486,30 @@ func (m editorModel) view(width, height int) string {
 			Foreground(errorColor).
 			Render("✗ " + m.err)
 		b.WriteString(errBox)
-		b.WriteString("\n")
-		b.WriteString(helpStyle.Render("  tab next • " + saveKeyHint() + " save • esc cancel"))
-	} else {
-		b.WriteString(helpStyle.Render("  tab next • " + saveKeyHint() + " save • esc cancel"))
 	}
 
-	// Apply padding
-	paddingStyle := lipgloss.NewStyle().
-		PaddingLeft(leftPadding).
-		PaddingTop(topPadding)
+	// Build view with side padding
+	mainContent := b.String()
+	var view strings.Builder
+	lines := strings.Split(mainContent, "\n")
+	for _, line := range lines {
+		view.WriteString(strings.Repeat(" ", sidePadding))
+		view.WriteString(line)
+		view.WriteString("\n")
+	}
 
-	return paddingStyle.Render(b.String())
+	// Fill remaining space to push help bar to bottom
+	currentLines := len(lines)
+	remainingLines := height - currentLines - 1
+	for i := 0; i < remainingLines; i++ {
+		view.WriteString("\n")
+	}
+
+	// Help bar at bottom
+	helpBar := RenderHelpBar("Tab next • "+saveKeyHint()+" save • Esc cancel", width)
+	view.WriteString(helpBar)
+
+	return view.String()
 }
 
 // standaloneEditorModel wraps editorModel for standalone use.
@@ -755,7 +768,8 @@ func (m envVarsEditorModel) updateValueEdit(msg tea.KeyMsg) (envVarsEditorModel,
 
 func (m envVarsEditorModel) view(width, height int) string {
 	// Use global layout dimensions
-	contentWidth, _, leftPadding, topPadding := LayoutDimensions(width, height)
+	contentWidth, _, _, _ := LayoutDimensions(width, height)
+	sidePadding := 2
 
 	var b strings.Builder
 
@@ -777,15 +791,11 @@ func (m envVarsEditorModel) view(width, height int) string {
 		content.WriteString(dimStyle.Render(" e.g. CLAUDE_CODE_MAX_OUTPUT_TOKENS"))
 		content.WriteString("\n\n")
 		content.WriteString(lipgloss.NewStyle().Foreground(accentColor).Render("  " + m.keyInput + "█"))
-		content.WriteString("\n\n")
-		content.WriteString(helpStyle.Render("  enter/tab next • esc cancel"))
 	} else if m.phase == 2 {
 		// Value editing
 		content.WriteString(sectionTitleStyle.Render(fmt.Sprintf(" Enter Value for %s", m.keyInput)))
 		content.WriteString("\n\n")
 		content.WriteString(lipgloss.NewStyle().Foreground(accentColor).Render("  " + m.valueInput + "█"))
-		content.WriteString("\n\n")
-		content.WriteString(helpStyle.Render("  enter save • esc cancel"))
 	} else {
 		// List view
 		content.WriteString(sectionTitleStyle.Render(" Custom Environment Variables"))
@@ -813,8 +823,6 @@ func (m envVarsEditorModel) view(width, height int) string {
 			style = tableSelectedRowStyle
 		}
 		content.WriteString(style.Render(cursor + "[+ Add new variable]"))
-		content.WriteString("\n\n")
-		content.WriteString(helpStyle.Render("  ↑↓ move • enter edit/add • d delete • esc done"))
 	}
 
 	// Content box with proper width
@@ -827,17 +835,41 @@ func (m envVarsEditorModel) view(width, height int) string {
 	}
 
 	contentBox := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
+		Border(lipgloss.ThickBorder()).
 		BorderForeground(borderColor).
 		Padding(0, 1).
 		Width(boxWidth).
 		Render(content.String())
 	b.WriteString(contentBox)
 
-	// Apply padding
-	paddingStyle := lipgloss.NewStyle().
-		PaddingLeft(leftPadding).
-		PaddingTop(topPadding)
+	// Build view with side padding
+	mainContent := b.String()
+	var view strings.Builder
+	lines := strings.Split(mainContent, "\n")
+	for _, line := range lines {
+		view.WriteString(strings.Repeat(" ", sidePadding))
+		view.WriteString(line)
+		view.WriteString("\n")
+	}
 
-	return paddingStyle.Render(b.String())
+	// Fill remaining space to push help bar to bottom
+	currentLines := len(lines)
+	remainingLines := height - currentLines - 1
+	for i := 0; i < remainingLines; i++ {
+		view.WriteString("\n")
+	}
+
+	// Help bar at bottom
+	var helpText string
+	if m.phase == 1 {
+		helpText = "Enter/Tab next • Esc cancel"
+	} else if m.phase == 2 {
+		helpText = "Enter save • Esc cancel"
+	} else {
+		helpText = "↑↓ move • Enter edit/add • d delete • Esc done"
+	}
+	helpBar := RenderHelpBar(helpText, width)
+	view.WriteString(helpBar)
+
+	return view.String()
 }
