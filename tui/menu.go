@@ -56,22 +56,18 @@ func NewMenuModel() MenuModel {
 		cli:     config.GetDefaultCLI(),
 		titleStyle: lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("14")).
-			MarginBottom(1),
+			Foreground(lipgloss.Color("14")),
 		itemStyle: lipgloss.NewStyle().
-			PaddingLeft(4).
 			Foreground(lipgloss.Color("7")),
 		selectedStyle: lipgloss.NewStyle().
-			PaddingLeft(2).
 			Foreground(lipgloss.Color("14")).
 			Bold(true),
 		statusStyle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("8")).
-			MarginTop(1),
+			Foreground(lipgloss.Color("8")),
 		boxStyle: lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("8")).
-			Padding(1, 3),
+			Border(lipgloss.ThickBorder()).
+			BorderForeground(lipgloss.Color("240")).
+			Padding(1, 4),
 	}
 }
 
@@ -126,54 +122,49 @@ func (m MenuModel) Update(msg tea.Msg) (MenuModel, tea.Cmd) {
 
 // View implements tea.Model.
 func (m MenuModel) View() string {
-	// Use global layout dimensions
-	contentWidth, contentHeight, leftPadding, topPadding := LayoutDimensions(m.width, m.height)
-
-	// Title
+	// Title and subtitle - centered
 	title := m.titleStyle.Render("OpenCC")
 	subtitle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("8")).
 		Render("Environment Switcher")
 
-	// Menu items
-	var menuItems string
+	// Menu items - fixed width, cursor doesn't shift text
+	var menuItems strings.Builder
 	for i, item := range m.items {
-		var line string
 		if i == m.cursor {
-			line = m.selectedStyle.Render(fmt.Sprintf("> %s", item.label))
+			menuItems.WriteString(m.selectedStyle.Render("> " + item.label))
 		} else {
-			line = m.itemStyle.Render(fmt.Sprintf("  %s", item.label))
+			menuItems.WriteString(m.itemStyle.Render("  " + item.label))
 		}
-		menuItems += line + "\n"
+		menuItems.WriteString("\n")
 	}
 
-	// Status line
+	// Status line - centered below menu
 	status := m.statusStyle.Render(fmt.Sprintf("Profile: %s  |  CLI: %s", m.profile, m.cli))
 
-	// Combine into box - use wider box
-	boxWidth := contentWidth * 60 / 100
-	if boxWidth < 40 {
-		boxWidth = 40
-	}
-	if boxWidth > 60 {
-		boxWidth = 60
-	}
+	// Calculate box width
+	boxWidth := 36
 
-	content := lipgloss.JoinVertical(lipgloss.Center,
-		title,
-		subtitle,
+	// Build box content: title and subtitle centered, menu left-aligned
+	titleCentered := lipgloss.NewStyle().Width(boxWidth - 10).Align(lipgloss.Center).Render(title)
+	subtitleCentered := lipgloss.NewStyle().Width(boxWidth - 10).Align(lipgloss.Center).Render(subtitle)
+
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		titleCentered,
+		subtitleCentered,
 		"",
-		menuItems,
+		menuItems.String(),
 	)
+
 	box := m.boxStyle.Width(boxWidth).Render(content)
 
-	// Center on screen
+	// Center box on screen
 	boxWidthActual := lipgloss.Width(box)
 	boxHeight := lipgloss.Height(box)
 
-	// Calculate centering within content area
-	boxPadLeft := leftPadding + (contentWidth-boxWidthActual)/2
-	boxPadTop := topPadding + (contentHeight-boxHeight-2)/2
+	boxPadLeft := (m.width - boxWidthActual) / 2
+	// Reserve 1 line for help bar at bottom
+	boxPadTop := (m.height - boxHeight - 3) / 2
 
 	if boxPadLeft < 0 {
 		boxPadLeft = 0
@@ -182,21 +173,36 @@ func (m MenuModel) View() string {
 		boxPadTop = 0
 	}
 
-	// Build final view
-	var view string
+	// Build main content area
+	var view strings.Builder
 	for i := 0; i < boxPadTop; i++ {
-		view += "\n"
+		view.WriteString("\n")
 	}
 
 	lines := strings.Split(box, "\n")
 	for _, line := range lines {
-		view += strings.Repeat(" ", boxPadLeft) + line + "\n"
+		view.WriteString(strings.Repeat(" ", boxPadLeft))
+		view.WriteString(line)
+		view.WriteString("\n")
 	}
 
-	// Status at bottom
-	view += strings.Repeat(" ", boxPadLeft) + status
+	// Status below box
+	view.WriteString(strings.Repeat(" ", boxPadLeft))
+	view.WriteString(status)
+	view.WriteString("\n")
 
-	return view
+	// Fill remaining space before help bar
+	currentLines := strings.Count(view.String(), "\n")
+	remainingLines := m.height - currentLines - 1
+	for i := 0; i < remainingLines; i++ {
+		view.WriteString("\n")
+	}
+
+	// Help bar at bottom - full terminal width with background
+	helpBar := RenderHelpBar("↑↓ navigate • Enter select • q quit", m.width)
+	view.WriteString(helpBar)
+
+	return view.String()
 }
 
 // Refresh reloads config values.

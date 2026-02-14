@@ -183,3 +183,15 @@ func repeatString(s string, n int) string {
 	}
 	return result
 }
+
+// RenderHelpBar renders a full-width help bar at the bottom of the screen.
+// The help bar has a background color and left padding of 2 characters.
+func RenderHelpBar(text string, termWidth int) string {
+	helpBarStyle := lipgloss.NewStyle().
+		Background(lipgloss.Color("236")). // dark gray background
+		Foreground(dimColor).
+		PaddingLeft(2).
+		Width(termWidth)
+
+	return helpBarStyle.Render(text)
+}
