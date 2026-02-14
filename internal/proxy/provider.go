@@ -16,21 +16,24 @@ const (
 )
 
 type Provider struct {
-	Name           string
-	Type           string // "anthropic" or "openai"
-	BaseURL        *url.URL
-	Token          string
-	Model          string
-	ReasoningModel string
-	HaikuModel     string
-	OpusModel      string
-	SonnetModel    string
-	EnvVars        map[string]string
-	Healthy        bool
-	AuthFailed     bool
-	FailedAt       time.Time
-	Backoff        time.Duration
-	mu             sync.Mutex
+	Name            string
+	Type            string // "anthropic" or "openai"
+	BaseURL         *url.URL
+	Token           string
+	Model           string
+	ReasoningModel  string
+	HaikuModel      string
+	OpusModel       string
+	SonnetModel     string
+	EnvVars         map[string]string // Legacy env vars (for backward compat)
+	ClaudeEnvVars   map[string]string // Claude Code specific
+	CodexEnvVars    map[string]string // Codex specific
+	OpenCodeEnvVars map[string]string // OpenCode specific
+	Healthy         bool
+	AuthFailed      bool
+	FailedAt        time.Time
+	Backoff         time.Duration
+	mu              sync.Mutex
 }
 
 // GetType returns the provider type, defaulting to "anthropic".
@@ -39,6 +42,25 @@ func (p *Provider) GetType() string {
 		return config.ProviderTypeAnthropic
 	}
 	return p.Type
+}
+
+// GetEnvVarsForCLI returns the environment variables for a specific CLI.
+func (p *Provider) GetEnvVarsForCLI(cli string) map[string]string {
+	switch cli {
+	case "codex":
+		if len(p.CodexEnvVars) > 0 {
+			return p.CodexEnvVars
+		}
+	case "opencode":
+		if len(p.OpenCodeEnvVars) > 0 {
+			return p.OpenCodeEnvVars
+		}
+	default: // claude
+		if len(p.ClaudeEnvVars) > 0 {
+			return p.ClaudeEnvVars
+		}
+	}
+	return p.EnvVars
 }
 
 func (p *Provider) IsHealthy() bool {

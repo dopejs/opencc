@@ -75,12 +75,132 @@
         <div id="profiles-list"></div>
       </section>
 
+      <!-- Provider Edit Page -->
+      <section id="tab-provider-edit" class="tab-content">
+        <div class="page-header">
+          <div class="page-header-left">
+            <button class="btn btn-icon btn-back" id="prov-back" title="Back to Providers">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+            </button>
+            <div>
+              <h1 id="prov-title">Add Provider</h1>
+              <p class="page-desc" id="prov-desc">Configure a new API provider</p>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost" id="prov-cancel">Cancel</button>
+            <button class="btn btn-primary" id="prov-save">Save</button>
+          </div>
+        </div>
+        <form id="prov-form">
+          <div class="form-group" id="prov-name-group">
+            <label for="prov-name">Name</label>
+            <input type="text" id="prov-name" required autocomplete="off" placeholder="my-provider">
+          </div>
+          <div class="form-group">
+            <label for="prov-type">API Type</label>
+            <select id="prov-type">
+              <option value="anthropic">Anthropic Messages API</option>
+              <option value="openai">OpenAI Chat Completions API</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="prov-base-url">Base URL</label>
+            <input type="url" id="prov-base-url" required placeholder="https://api.example.com">
+          </div>
+          <div class="form-group">
+            <label for="prov-token">Auth Token</label>
+            <input type="text" id="prov-token" autocomplete="off" placeholder="sk-...">
+          </div>
+          <div class="form-divider"><span>Model Overrides</span></div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="prov-model">Default Model</label>
+              <div class="ac-wrap">
+                <input type="text" id="prov-model" placeholder="claude-sonnet-4-5" autocomplete="off" data-ac="models-default">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="prov-reasoning">Reasoning Model</label>
+              <div class="ac-wrap">
+                <input type="text" id="prov-reasoning" placeholder="claude-sonnet-4-5" autocomplete="off" data-ac="models-default">
+              </div>
+            </div>
+          </div>
+          <div class="form-row form-row-3">
+            <div class="form-group">
+              <label for="prov-haiku">Haiku</label>
+              <div class="ac-wrap">
+                <input type="text" id="prov-haiku" placeholder="claude-haiku-4-5" autocomplete="off" data-ac="models-haiku">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="prov-opus">Opus</label>
+              <div class="ac-wrap">
+                <input type="text" id="prov-opus" placeholder="claude-opus-4-5" autocomplete="off" data-ac="models-opus">
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="prov-sonnet">Sonnet</label>
+              <div class="ac-wrap">
+                <input type="text" id="prov-sonnet" placeholder="claude-sonnet-4-5" autocomplete="off" data-ac="models-sonnet">
+              </div>
+            </div>
+          </div>
+          <div class="form-divider"><span>Environment Variables</span></div>
+          <div class="env-tabs">
+            <button type="button" class="env-tab active" data-cli="claude">Claude Code</button>
+            <button type="button" class="env-tab" data-cli="codex">Codex</button>
+            <button type="button" class="env-tab" data-cli="opencode">OpenCode</button>
+          </div>
+          <div class="env-tab-content" id="env-claude" style="display:block">
+            <p class="env-hint">Environment variables for Claude Code:</p>
+            <div class="env-presets">
+              <button type="button" class="btn-preset" data-env="CLAUDE_CODE_MAX_OUTPUT_TOKENS" data-value="64000" data-cli="claude">Max Output Tokens</button>
+              <button type="button" class="btn-preset" data-env="MAX_THINKING_TOKENS" data-value="50000" data-cli="claude">Max Thinking</button>
+              <button type="button" class="btn-preset" data-env="ANTHROPIC_MAX_CONTEXT_WINDOW" data-value="1000000" data-cli="claude">Max Context</button>
+              <button type="button" class="btn-preset" data-env="BASH_DEFAULT_TIMEOUT_MS" data-value="180000" data-cli="claude">Bash Timeout</button>
+            </div>
+            <div id="env-vars-claude"></div>
+            <button type="button" class="btn btn-ghost btn-sm btn-add-env" data-cli="claude">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Variable
+            </button>
+          </div>
+          <div class="env-tab-content" id="env-codex" style="display:none">
+            <p class="env-hint">Environment variables for Codex (configured via config.toml, limited env var support):</p>
+            <div id="env-vars-codex"></div>
+            <button type="button" class="btn btn-ghost btn-sm btn-add-env" data-cli="codex">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Variable
+            </button>
+          </div>
+          <div class="env-tab-content" id="env-opencode" style="display:none">
+            <p class="env-hint">Environment variables for OpenCode:</p>
+            <div class="env-presets">
+              <button type="button" class="btn-preset" data-env="OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX" data-value="64000" data-cli="opencode">Max Output Tokens</button>
+              <button type="button" class="btn-preset" data-env="OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS" data-value="180000" data-cli="opencode">Bash Timeout</button>
+            </div>
+            <div id="env-vars-opencode"></div>
+            <button type="button" class="btn btn-ghost btn-sm btn-add-env" data-cli="opencode">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Variable
+            </button>
+          </div>
+        </form>
+      </section>
+
       <!-- Profile Edit Page -->
       <section id="tab-profile-edit" class="tab-content">
         <div class="page-header">
-          <div>
-            <h1 id="pe-title">Edit Profile</h1>
-            <p class="page-desc" id="pe-desc"></p>
+          <div class="page-header-left">
+            <button class="btn btn-icon btn-back" id="pe-back" title="Back to Profiles">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
+            </button>
+            <div>
+              <h1 id="pe-title">Edit Profile</h1>
+              <p class="page-desc" id="pe-desc"></p>
+            </div>
           </div>
           <div style="display:flex;gap:8px">
             <button class="btn btn-ghost" id="pe-cancel">Cancel</button>
@@ -174,97 +294,6 @@
           </div>
         </form>
       </section>
-    </div>
-  </div>
-
-  <!-- Provider Modal -->
-  <div id="provider-modal" class="modal-overlay">
-    <div class="modal">
-      <div class="modal-header">
-        <h2 id="provider-modal-title">Add Provider</h2>
-        <button class="btn-close modal-close" aria-label="Close">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <form id="provider-form" class="modal-body">
-        <div class="form-group">
-          <label for="pf-name">Name</label>
-          <input type="text" id="pf-name" required autocomplete="off" placeholder="my-provider">
-        </div>
-        <div class="form-group">
-          <label for="pf-type">API Type</label>
-          <select id="pf-type">
-            <option value="anthropic">Anthropic Messages API</option>
-            <option value="openai">OpenAI Chat Completions API</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="pf-base-url">Base URL</label>
-          <input type="url" id="pf-base-url" required placeholder="https://api.example.com">
-        </div>
-        <div class="form-group">
-          <label for="pf-token">Auth Token</label>
-          <input type="text" id="pf-token" autocomplete="off" placeholder="sk-...">
-        </div>
-        <div class="form-divider"><span>Model Overrides</span></div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="pf-model">Default Model</label>
-            <div class="ac-wrap">
-              <input type="text" id="pf-model" placeholder="claude-sonnet-4-5" autocomplete="off" data-ac="models-default">
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="pf-reasoning">Reasoning Model</label>
-            <div class="ac-wrap">
-              <input type="text" id="pf-reasoning" placeholder="claude-sonnet-4-5" autocomplete="off" data-ac="models-default">
-            </div>
-          </div>
-        </div>
-        <div class="form-row form-row-3">
-          <div class="form-group">
-            <label for="pf-haiku">Haiku</label>
-            <div class="ac-wrap">
-              <input type="text" id="pf-haiku" placeholder="claude-haiku-4-5" autocomplete="off" data-ac="models-haiku">
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="pf-opus">Opus</label>
-            <div class="ac-wrap">
-              <input type="text" id="pf-opus" placeholder="claude-opus-4-5" autocomplete="off" data-ac="models-opus">
-            </div>
-          </div>
-          <div class="form-group">
-            <label for="pf-sonnet">Sonnet</label>
-            <div class="ac-wrap">
-              <input type="text" id="pf-sonnet" placeholder="claude-sonnet-4-5" autocomplete="off" data-ac="models-sonnet">
-            </div>
-          </div>
-        </div>
-        <div class="form-divider"><span>Environment Variables (Optional)</span></div>
-        <details class="env-vars-section" open>
-          <summary>Custom Environment Variables</summary>
-          <div>
-            <p class="env-hint">Add environment variables that will be set when using this provider. Common examples:</p>
-            <div class="env-presets">
-              <button type="button" class="btn-preset" data-env="CLAUDE_CODE_MAX_OUTPUT_TOKENS" data-value="64000">Max Output Tokens</button>
-              <button type="button" class="btn-preset" data-env="MAX_THINKING_TOKENS" data-value="50000">Max Thinking</button>
-              <button type="button" class="btn-preset" data-env="ANTHROPIC_MAX_CONTEXT_WINDOW" data-value="1000000">Max Context</button>
-              <button type="button" class="btn-preset" data-env="CLAUDE_CODE_EFFORT_LEVEL" data-value="high">Effort Level</button>
-              <button type="button" class="btn-preset" data-env="BASH_DEFAULT_TIMEOUT_MS" data-value="180000">Bash Timeout</button>
-            </div>
-            <div id="env-vars-list"></div>
-            <button type="button" class="btn btn-ghost btn-sm" id="btn-add-env">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Add Variable
-            </button>
-          </div>
-        </details>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-ghost modal-cancel">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save</button>
-        </div>
-      </form>
     </div>
   </div>
 

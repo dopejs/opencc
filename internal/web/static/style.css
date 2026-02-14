@@ -872,3 +872,85 @@ input:disabled{opacity:.5;cursor:not-allowed}
   overflow-y:auto;
 }
 
+/* --- Page Header with Back Button --- */
+.page-header-left{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.btn-back{
+  width:36px;
+  height:36px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:var(--bg-overlay);
+  border:1px solid var(--border);
+  border-radius:var(--r-md);
+  color:var(--text-secondary);
+  cursor:pointer;
+  transition:var(--t-fast);
+}
+.btn-back:hover{
+  background:var(--bg-hover);
+  color:var(--text-primary);
+  border-color:var(--border-strong);
+}
+.btn-back svg{
+  width:18px;
+  height:18px;
+}
+
+/* --- Environment Variable Tabs --- */
+.env-tabs{
+  display:flex;
+  gap:4px;
+  margin-bottom:16px;
+  padding:4px;
+  background:var(--bg-base);
+  border-radius:var(--r-md);
+}
+
+.env-tab{
+  flex:1;
+  padding:8px 16px;
+  background:transparent;
+  border:none;
+  border-radius:var(--r-sm);
+  color:var(--text-secondary);
+  font-size:13px;
+  font-weight:500;
+  cursor:pointer;
+  transition:var(--t-fast);
+}
+.env-tab:hover{
+  color:var(--text-primary);
+  background:var(--bg-hover);
+}
+.env-tab.active{
+  background:var(--bg-elevated);
+  color:var(--text-primary);
+  box-shadow:var(--shadow-sm);
+}
+
+.env-tab-content{
+  padding:16px;
+  background:var(--bg-surface);
+  border:1px solid var(--border);
+  border-radius:var(--r-md);
+}
+
+.env-tab-content .env-hint{
+  margin-bottom:12px;
+  font-size:12px;
+  color:var(--text-muted);
+}
+
+.env-tab-content .env-presets{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-bottom:12px;
+}
+

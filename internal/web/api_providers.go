@@ -9,21 +9,25 @@ import (
 
 // providerResponse is the JSON shape returned for a single provider.
 type providerResponse struct {
-	Name           string            `json:"name"`
-	BaseURL        string            `json:"base_url"`
-	AuthToken      string            `json:"auth_token"`
-	Model          string            `json:"model,omitempty"`
-	ReasoningModel string            `json:"reasoning_model,omitempty"`
-	HaikuModel     string            `json:"haiku_model,omitempty"`
-	OpusModel      string            `json:"opus_model,omitempty"`
-	SonnetModel    string            `json:"sonnet_model,omitempty"`
-	EnvVars        map[string]string `json:"env_vars,omitempty"`
+	Name            string            `json:"name"`
+	Type            string            `json:"type,omitempty"`
+	BaseURL         string            `json:"base_url"`
+	AuthToken       string            `json:"auth_token"`
+	Model           string            `json:"model,omitempty"`
+	ReasoningModel  string            `json:"reasoning_model,omitempty"`
+	HaikuModel      string            `json:"haiku_model,omitempty"`
+	OpusModel       string            `json:"opus_model,omitempty"`
+	SonnetModel     string            `json:"sonnet_model,omitempty"`
+	EnvVars         map[string]string `json:"env_vars,omitempty"`
+	ClaudeEnvVars   map[string]string `json:"claude_env_vars,omitempty"`
+	CodexEnvVars    map[string]string `json:"codex_env_vars,omitempty"`
+	OpenCodeEnvVars map[string]string `json:"opencode_env_vars,omitempty"`
 }
 
 type createProviderRequest struct {
-	Name          string                 `json:"name"`
-	Config        config.ProviderConfig  `json:"config"`
-	AddToProfiles []string               `json:"add_to_profiles,omitempty"`
+	Name          string                `json:"name"`
+	Config        config.ProviderConfig `json:"config"`
+	AddToProfiles []string              `json:"add_to_profiles,omitempty"`
 }
 
 func toProviderResponse(name string, p *config.ProviderConfig, mask bool) providerResponse {
@@ -32,15 +36,19 @@ func toProviderResponse(name string, p *config.ProviderConfig, mask bool) provid
 		token = maskToken(token)
 	}
 	return providerResponse{
-		Name:           name,
-		BaseURL:        p.BaseURL,
-		AuthToken:      token,
-		Model:          p.Model,
-		ReasoningModel: p.ReasoningModel,
-		HaikuModel:     p.HaikuModel,
-		OpusModel:      p.OpusModel,
-		SonnetModel:    p.SonnetModel,
-		EnvVars:        p.EnvVars,
+		Name:            name,
+		Type:            p.Type,
+		BaseURL:         p.BaseURL,
+		AuthToken:       token,
+		Model:           p.Model,
+		ReasoningModel:  p.ReasoningModel,
+		HaikuModel:      p.HaikuModel,
+		OpusModel:       p.OpusModel,
+		SonnetModel:     p.SonnetModel,
+		EnvVars:         p.EnvVars,
+		ClaudeEnvVars:   p.ClaudeEnvVars,
+		CodexEnvVars:    p.CodexEnvVars,
+		OpenCodeEnvVars: p.OpenCodeEnvVars,
 	}
 }
 
@@ -158,12 +166,16 @@ func (s *Server) updateProvider(w http.ResponseWriter, r *http.Request, name str
 	if update.AuthToken != "" {
 		existing.AuthToken = update.AuthToken
 	}
+	existing.Type = update.Type
 	existing.Model = update.Model
 	existing.ReasoningModel = update.ReasoningModel
 	existing.HaikuModel = update.HaikuModel
 	existing.OpusModel = update.OpusModel
 	existing.SonnetModel = update.SonnetModel
 	existing.EnvVars = update.EnvVars
+	existing.ClaudeEnvVars = update.ClaudeEnvVars
+	existing.CodexEnvVars = update.CodexEnvVars
+	existing.OpenCodeEnvVars = update.OpenCodeEnvVars
 
 	if err := store.SetProvider(name, existing); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())

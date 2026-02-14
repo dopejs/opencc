@@ -32,7 +32,10 @@ type ProviderConfig struct {
 	HaikuModel     string            `json:"haiku_model,omitempty"`
 	OpusModel      string            `json:"opus_model,omitempty"`
 	SonnetModel    string            `json:"sonnet_model,omitempty"`
-	EnvVars        map[string]string `json:"env_vars,omitempty"`
+	EnvVars        map[string]string `json:"env_vars,omitempty"`          // Claude Code env vars (legacy, for backward compat)
+	ClaudeEnvVars  map[string]string `json:"claude_env_vars,omitempty"`   // Claude Code specific env vars
+	CodexEnvVars   map[string]string `json:"codex_env_vars,omitempty"`    // Codex specific env vars
+	OpenCodeEnvVars map[string]string `json:"opencode_env_vars,omitempty"` // OpenCode specific env vars
 }
 
 // GetType returns the provider type, defaulting to "anthropic".
@@ -41,6 +44,27 @@ func (p *ProviderConfig) GetType() string {
 		return ProviderTypeAnthropic
 	}
 	return p.Type
+}
+
+// GetEnvVarsForCLI returns the environment variables for a specific CLI.
+// Falls back to legacy EnvVars if CLI-specific vars are not set.
+func (p *ProviderConfig) GetEnvVarsForCLI(cli string) map[string]string {
+	switch cli {
+	case "codex":
+		if len(p.CodexEnvVars) > 0 {
+			return p.CodexEnvVars
+		}
+	case "opencode":
+		if len(p.OpenCodeEnvVars) > 0 {
+			return p.OpenCodeEnvVars
+		}
+	default: // claude
+		if len(p.ClaudeEnvVars) > 0 {
+			return p.ClaudeEnvVars
+		}
+	}
+	// Fallback to legacy EnvVars
+	return p.EnvVars
 }
 
 // ExportToEnv sets all ANTHROPIC_* environment variables from this provider config.

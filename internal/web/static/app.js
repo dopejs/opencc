@@ -27,6 +27,7 @@
   var editingProvider = null;
   var editingProfile = null;
   var settings = null;
+  var currentEnvTab = "claude";
 
   // --- Init ---
   document.addEventListener("DOMContentLoaded", init);
@@ -35,14 +36,14 @@
     setupNav();
     setupModals();
     setupAutocomplete();
-    setupEnvVars();
+    setupProviderEdit();
     setupLogs();
     setupSettings();
     document.getElementById("btn-add-provider").addEventListener("click", openAddProvider);
     document.getElementById("btn-add-profile").addEventListener("click", openAddProfile);
-    document.getElementById("provider-form").addEventListener("submit", submitProvider);
     document.getElementById("pe-form").addEventListener("submit", function(e) { e.preventDefault(); submitProfile(e); });
     document.getElementById("pe-cancel").addEventListener("click", function() { switchTab("profiles") });
+    document.getElementById("pe-back").addEventListener("click", function() { switchTab("profiles") });
     document.getElementById("pe-save").addEventListener("click", function(e) { submitProfile(e) });
     document.getElementById("btn-reload").addEventListener("click", reloadConfig);
     document.getElementById("atp-skip").addEventListener("click", function() { closeModal("add-to-profiles-modal") });
@@ -68,8 +69,8 @@
   function switchTab(tab) {
     document.querySelectorAll(".nav-item[data-tab]").forEach(function(n) { n.classList.remove("active") });
     document.querySelectorAll(".tab-content").forEach(function(c) { c.classList.remove("active") });
-    // Don't activate sidebar for profile-edit (it's a sub-page)
-    if (tab !== "profile-edit") {
+    // Don't activate sidebar for sub-pages
+    if (tab !== "profile-edit" && tab !== "provider-edit") {
       var btn = document.querySelector('.nav-item[data-tab="' + tab + '"]');
       if (btn) btn.classList.add("active");
     }
@@ -112,23 +113,46 @@
     el.classList.remove("open");
   }
 
-  // --- Environment Variables ---
-  function setupEnvVars() {
-    document.getElementById("btn-add-env").addEventListener("click", addEnvVarRow);
+  // --- Provider Edit Page ---
+  function setupProviderEdit() {
+    document.getElementById("prov-form").addEventListener("submit", function(e) { e.preventDefault(); submitProvider(e); });
+    document.getElementById("prov-cancel").addEventListener("click", function() { switchTab("providers") });
+    document.getElementById("prov-back").addEventListener("click", function() { switchTab("providers") });
+    document.getElementById("prov-save").addEventListener("click", function(e) { submitProvider(e) });
+
+    // Env tabs
+    document.querySelectorAll(".env-tab").forEach(function(tab) {
+      tab.addEventListener("click", function() {
+        document.querySelectorAll(".env-tab").forEach(function(t) { t.classList.remove("active") });
+        document.querySelectorAll(".env-tab-content").forEach(function(c) { c.style.display = "none" });
+        tab.classList.add("active");
+        currentEnvTab = tab.dataset.cli;
+        document.getElementById("env-" + currentEnvTab).style.display = "block";
+      });
+    });
+
+    // Add env var buttons
+    document.querySelectorAll(".btn-add-env").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        addEnvVarRow(btn.dataset.cli, "", "");
+      });
+    });
+
+    // Preset buttons
     document.querySelectorAll(".btn-preset").forEach(function(btn) {
       btn.addEventListener("click", function() {
-        addEnvVarRow(btn.dataset.env, btn.dataset.value);
+        addEnvVarRow(btn.dataset.cli, btn.dataset.env, btn.dataset.value);
       });
     });
   }
 
-  function addEnvVarRow(key, value) {
-    var container = document.getElementById("env-vars-list");
+  function addEnvVarRow(cli, key, value) {
+    var container = document.getElementById("env-vars-" + cli);
     var row = document.createElement("div");
     row.className = "env-var-item";
     row.innerHTML =
-      '<input type="text" placeholder="ENV_VAR_NAME" value="' + (key || '') + '">' +
-      '<input type="text" placeholder="value" value="' + (value || '') + '">' +
+      '<input type="text" placeholder="ENV_VAR_NAME" value="' + esc(key || '') + '">' +
+      '<input type="text" placeholder="value" value="' + esc(value || '') + '">' +
       '<button type="button" class="btn-remove-env">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
       '</button>';
@@ -138,9 +162,11 @@
     container.appendChild(row);
   }
 
-  function getEnvVars() {
+  function getEnvVarsForCLI(cli) {
     var envVars = {};
-    document.querySelectorAll("#env-vars-list .env-var-item").forEach(function(row) {
+    var container = document.getElementById("env-vars-" + cli);
+    if (!container) return null;
+    container.querySelectorAll(".env-var-item").forEach(function(row) {
       var inputs = row.querySelectorAll("input");
       var key = inputs[0].value.trim();
       var val = inputs[1].value.trim();
@@ -151,14 +177,22 @@
     return Object.keys(envVars).length > 0 ? envVars : null;
   }
 
-  function setEnvVars(envVars) {
-    var container = document.getElementById("env-vars-list");
+  function setEnvVarsForCLI(cli, envVars) {
+    var container = document.getElementById("env-vars-" + cli);
+    if (!container) return;
     container.innerHTML = "";
     if (envVars) {
       for (var key in envVars) {
-        addEnvVarRow(key, envVars[key]);
+        addEnvVarRow(cli, key, envVars[key]);
       }
     }
+  }
+
+  function clearAllEnvVars() {
+    ["claude", "codex", "opencode"].forEach(function(cli) {
+      var container = document.getElementById("env-vars-" + cli);
+      if (container) container.innerHTML = "";
+    });
   }
 
   // --- Model autocomplete ---
@@ -360,34 +394,54 @@
 
   function openAddProvider() {
     editingProvider = null;
-    document.getElementById("provider-modal-title").textContent = "Add Provider";
-    document.getElementById("provider-form").reset();
-    document.getElementById("pf-name").disabled = false;
-    document.getElementById("pf-type").value = "anthropic";
-    setEnvVars(null); // Clear env vars
-    openModal("provider-modal");
+    document.getElementById("prov-title").textContent = "Add Provider";
+    document.getElementById("prov-desc").textContent = "Configure a new API provider";
+    document.getElementById("prov-form").reset();
+    document.getElementById("prov-name").disabled = false;
+    document.getElementById("prov-name-group").style.display = "block";
+    document.getElementById("prov-type").value = "anthropic";
+    clearAllEnvVars();
+    // Reset to first tab
+    document.querySelectorAll(".env-tab").forEach(function(t) { t.classList.remove("active") });
+    document.querySelectorAll(".env-tab-content").forEach(function(c) { c.style.display = "none" });
+    document.querySelector('.env-tab[data-cli="claude"]').classList.add("active");
+    document.getElementById("env-claude").style.display = "block";
+    currentEnvTab = "claude";
+    switchTab("provider-edit");
   }
 
   function editProvider(name) {
     editingProvider = name;
     var p = providers.find(function(x) { return x.name === name });
     if (!p) return;
-    document.getElementById("provider-modal-title").textContent = "Edit Provider";
-    document.getElementById("pf-name").value = name;
-    document.getElementById("pf-name").disabled = true;
-    document.getElementById("pf-type").value = p.type || "anthropic";
-    document.getElementById("pf-base-url").value = p.base_url || "";
-    document.getElementById("pf-token").value = p.auth_token || "";
-    document.getElementById("pf-model").value = p.model || "";
-    document.getElementById("pf-reasoning").value = p.reasoning_model || "";
-    document.getElementById("pf-haiku").value = p.haiku_model || "";
-    document.getElementById("pf-opus").value = p.opus_model || "";
-    document.getElementById("pf-sonnet").value = p.sonnet_model || "";
+    document.getElementById("prov-title").textContent = "Edit Provider: " + name;
+    document.getElementById("prov-desc").textContent = "Modify provider configuration";
+    document.getElementById("prov-name").value = name;
+    document.getElementById("prov-name").disabled = true;
+    document.getElementById("prov-name-group").style.display = "none";
+    document.getElementById("prov-type").value = p.type || "anthropic";
+    document.getElementById("prov-base-url").value = p.base_url || "";
+    document.getElementById("prov-token").value = p.auth_token || "";
+    document.getElementById("prov-model").value = p.model || "";
+    document.getElementById("prov-reasoning").value = p.reasoning_model || "";
+    document.getElementById("prov-haiku").value = p.haiku_model || "";
+    document.getElementById("prov-opus").value = p.opus_model || "";
+    document.getElementById("prov-sonnet").value = p.sonnet_model || "";
 
-    // Load env_vars
-    setEnvVars(p.env_vars || {});
+    // Load env vars for each CLI
+    clearAllEnvVars();
+    setEnvVarsForCLI("claude", p.claude_env_vars || p.env_vars || {});
+    setEnvVarsForCLI("codex", p.codex_env_vars || {});
+    setEnvVarsForCLI("opencode", p.opencode_env_vars || {});
 
-    openModal("provider-modal");
+    // Reset to first tab
+    document.querySelectorAll(".env-tab").forEach(function(t) { t.classList.remove("active") });
+    document.querySelectorAll(".env-tab-content").forEach(function(c) { c.style.display = "none" });
+    document.querySelector('.env-tab[data-cli="claude"]').classList.add("active");
+    document.getElementById("env-claude").style.display = "block";
+    currentEnvTab = "claude";
+
+    switchTab("provider-edit");
   }
 
   function deleteProvider(name) {
@@ -404,36 +458,39 @@
     e.preventDefault();
 
     var cfg = {
-      type: document.getElementById("pf-type").value,
-      base_url: document.getElementById("pf-base-url").value.trim(),
-      auth_token: document.getElementById("pf-token").value,
-      model: document.getElementById("pf-model").value.trim(),
-      reasoning_model: document.getElementById("pf-reasoning").value.trim(),
-      haiku_model: document.getElementById("pf-haiku").value.trim(),
-      opus_model: document.getElementById("pf-opus").value.trim(),
-      sonnet_model: document.getElementById("pf-sonnet").value.trim()
+      type: document.getElementById("prov-type").value,
+      base_url: document.getElementById("prov-base-url").value.trim(),
+      auth_token: document.getElementById("prov-token").value,
+      model: document.getElementById("prov-model").value.trim(),
+      reasoning_model: document.getElementById("prov-reasoning").value.trim(),
+      haiku_model: document.getElementById("prov-haiku").value.trim(),
+      opus_model: document.getElementById("prov-opus").value.trim(),
+      sonnet_model: document.getElementById("prov-sonnet").value.trim()
     };
 
-    // Get env vars
-    var envVars = getEnvVars();
-    if (envVars) {
-      cfg.env_vars = envVars;
-    }
+    // Get env vars for each CLI
+    var claudeEnvVars = getEnvVarsForCLI("claude");
+    var codexEnvVars = getEnvVarsForCLI("codex");
+    var opencodeEnvVars = getEnvVarsForCLI("opencode");
+
+    if (claudeEnvVars) cfg.claude_env_vars = claudeEnvVars;
+    if (codexEnvVars) cfg.codex_env_vars = codexEnvVars;
+    if (opencodeEnvVars) cfg.opencode_env_vars = opencodeEnvVars;
 
     var promise;
     if (editingProvider) {
       promise = api("PUT", "/providers/" + encodeURIComponent(editingProvider), cfg);
     } else {
-      var name = document.getElementById("pf-name").value.trim();
+      var name = document.getElementById("prov-name").value.trim();
       if (!name) { toast("Name is required", "error"); return; }
       promise = api("POST", "/providers", { name: name, config: cfg });
     }
     promise.then(function(data) {
-      closeModal("provider-modal");
       var isNew = !editingProvider;
-      var providerName = isNew ? document.getElementById("pf-name").value.trim() : editingProvider;
+      var providerName = isNew ? document.getElementById("prov-name").value.trim() : editingProvider;
       toast(isNew ? "Provider created" : "Provider updated");
       loadProviders();
+      switchTab("providers");
       if (isNew && profiles.length > 0) {
         showAddToProfilesDialog(providerName);
       }

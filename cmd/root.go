@@ -145,19 +145,19 @@ func startProxy(names []string, pc *config.ProfileConfig, args []string) error {
 
 	logger.Printf("Proxy listening on 127.0.0.1:%d", port)
 
-	// Merge env_vars from all providers to CLI
-	// For ANTHROPIC_MAX_CONTEXT_WINDOW, use the minimum value across all providers
-	// This ensures the CLI respects the most restrictive provider's limit
-	mergedEnvVars := mergeProviderEnvVars(providers)
-	for k, v := range mergedEnvVars {
-		os.Setenv(k, v)
-		logger.Printf("Setting env: %s=%s", k, v)
-	}
-
 	// Get CLI binary name from config
 	cliBin := config.GetDefaultCLI()
 	if cliBin == "" {
 		cliBin = "claude"
+	}
+
+	// Merge env_vars from all providers for this specific CLI
+	// For numeric values like ANTHROPIC_MAX_CONTEXT_WINDOW, use the minimum value
+	// This ensures the CLI respects the most restrictive provider's limit
+	mergedEnvVars := mergeProviderEnvVarsForCLI(providers, cliBin)
+	for k, v := range mergedEnvVars {
+		os.Setenv(k, v)
+		logger.Printf("Setting env: %s=%s", k, v)
 	}
 
 	// Set environment variables based on CLI type
@@ -240,17 +240,20 @@ func buildProviders(names []string) ([]*proxy.Provider, error) {
 		}
 
 		providers = append(providers, &proxy.Provider{
-			Name:           name,
-			Type:           p.GetType(),
-			BaseURL:        u,
-			Token:          p.AuthToken,
-			Model:          model,
-			ReasoningModel: reasoningModel,
-			HaikuModel:     haikuModel,
-			OpusModel:      opusModel,
-			SonnetModel:    sonnetModel,
-			EnvVars:        p.EnvVars,
-			Healthy:        true,
+			Name:            name,
+			Type:            p.GetType(),
+			BaseURL:         u,
+			Token:           p.AuthToken,
+			Model:           model,
+			ReasoningModel:  reasoningModel,
+			HaikuModel:      haikuModel,
+			OpusModel:       opusModel,
+			SonnetModel:     sonnetModel,
+			EnvVars:         p.EnvVars,
+			ClaudeEnvVars:   p.ClaudeEnvVars,
+			CodexEnvVars:    p.CodexEnvVars,
+			OpenCodeEnvVars: p.OpenCodeEnvVars,
+			Healthy:         true,
 		})
 	}
 
@@ -260,22 +263,24 @@ func buildProviders(names []string) ([]*proxy.Provider, error) {
 	return providers, nil
 }
 
-// mergeProviderEnvVars merges env_vars from all providers.
+// mergeProviderEnvVarsForCLI merges env_vars from all providers for a specific CLI.
 // For numeric values like ANTHROPIC_MAX_CONTEXT_WINDOW, uses the minimum value.
 // For other values, first provider's value takes precedence.
-func mergeProviderEnvVars(providers []*proxy.Provider) map[string]string {
+func mergeProviderEnvVarsForCLI(providers []*proxy.Provider, cli string) map[string]string {
 	result := make(map[string]string)
 
 	// Env vars where we should take the minimum numeric value
 	minValueKeys := map[string]bool{
-		"ANTHROPIC_MAX_CONTEXT_WINDOW": true,
+		"ANTHROPIC_MAX_CONTEXT_WINDOW":          true,
+		"OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX": true,
 	}
 
 	for _, p := range providers {
-		if p.EnvVars == nil {
+		envVars := p.GetEnvVarsForCLI(cli)
+		if envVars == nil {
 			continue
 		}
-		for k, v := range p.EnvVars {
+		for k, v := range envVars {
 			if k == "" || v == "" {
 				continue
 			}
